@@ -20,7 +20,7 @@
               <p style="text-align:center">
                 <name>Kevin S. Tracy</name>
               </p>
-              <p>I am a PhD student in  <a href="https://www.ri.cmu.edu/">The Robotics Institute</a>, a part of the <a href="https://www.cs.cmu.edu/">School of Computer Science</a> at <a href="https://www.cmu.edu/">Carnegie Mellon University</a>. I am advised by <a href="https://www.ri.cmu.edu/ri-faculty/zachary-manchester/">Zac Manchester</a> as a part of the <a href="http://roboticexplorationlab.org/">Robotic Exploration Lab</a>. 
+              <p>I am a PhD student in  <a href="https://www.ri.cmu.edu/">The Robotics Institute</a>, a part of the <a href="https://www.cs.cmu.edu/">School of Computer Science</a> at <a href="https://www.cmu.edu/">Carnegie Mellon University</a>. I am advised by <a href="https://www.ri.cmu.edu/ri-faculty/zachary-manchester/">Zac Manchester</a> as a member of the <a href="http://roboticexplorationlab.org/">Robotic Exploration Lab</a>. 
               <p>
                 I did my BS in Mechanical Engineering at <a href="https://www.rice.edu/">Rice University</a>, and my MS in Mechanical Engineering at <a href="https://www.stanfordedu/">Stanford University</a> with a concentration in dynamics.  At Stanford I served as a teaching assistant to <a href="https://profiles.stanford.edu/stephen-rock">Stephen Rock</a> for <a href="https://explorecourses.stanford.edu/search?q=ENGR205">Control Design Techniques</a>, and <a href="https://web.stanford.edu/~schwager/">Mac Schwager</a> for <a href="https://online.stanford.edu/courses/aa273-state-estimation-and-filtering-robotic-perception">State Estimation and Filtering for Robotic Perception</a>.
               </p>
@@ -54,56 +54,139 @@
         <table style="width:100%;border:0px;border-spacing:0px;border-collapse:separate;margin-right:auto;margin-left:auto;"><tbody>
 
 					
-		          <tr>
+		      <tr>
             <td style="padding:20px;width:25%;vertical-align:middle">
-              <img src="images/B3DO.jpg" alt="b3do" width="160" style="border-style: none">
+              <img src="images/dcol.gif" alt="b3do" width="160" style="border-style: none">
             </td>
             <td width="75%" valign="middle">
-              <a href="https://drive.google.com/file/d/1_S8EQyngbHQrB415o0XkQ4V9SMzdEgWT/view?usp=sharing">
-                <papertitle>A Category-Level 3-D Object Dataset: Putting the Kinect to Work</papertitle>
+              <a href="https://arxiv.org/pdf/2207.00669.pdf">
+                <papertitle>Differentiable Collision Detection for a Set of Convex Primitives</papertitle>
               </a>
               <br>
-              <a href="http://www.eecs.berkeley.edu/%7Eallie/">Allison Janoch</a>,
-              <a href="http://sergeykarayev.com/">Sergey Karayev</a>,
-              <a href="http://www.eecs.berkeley.edu/%7Ejiayq/">Yangqing Jia</a>,
-              <strong>Jonathan T. Barron</strong>,
-              <a href="http://www.cs.berkeley.edu/%7Emfritz/">Mario Fritz</a>,
-              <a href="http://www.icsi.berkeley.edu/%7Esaenko/">Kate Saenko</a>,
-              <a href="http://www.eecs.berkeley.edu/%7Etrevor/">Trevor Darrell</a>
+              <strong>Kevin Tracy</strong>,
+              <a href="https://thowell.github.io/">Taylor Howell</a>,
+              <a href="https://www.ri.cmu.edu/ri-faculty/zachary-manchester/">Zac Manchester</a>
               <br>
-              <em>ICCV 3DRR Workshop</em>, 2011
+              <!-- <em>ICCV 3DRR Workshop</em>, 2011 -->
               <br>
-              <a href="data/B3DO_ICCV_2011.bib">bibtex</a> /
-              <a href="https://drive.google.com/file/d/1qf4-U5RhSw12O7gzQwW66SMQhs2FWYDW/view?usp=sharing">"smoothing" code</a>
-              <p>We present a large RGB-D dataset of indoor scenes and investigate ways to improve object detection using depth information.</p>
+              <a href="https://arxiv.org/abs/2207.00669">arXiv</a> 
+              <!-- <a href="https://drive.google.com/file/d/1qf4-U5RhSw12O7gzQwW66SMQhs2FWYDW/view?usp=sharing">"smoothing" code</a> -->
+              <p>We present a differentiable framework for computing collision information betweens a set of convex primitives. The collision problem is posed as a convex optimization problem that solves for the minimum scaling of each shape that results in an intersection.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px;width:25%;vertical-align:middle">
+              <img src="images/diffpills.png" alt="b3do" width="160" style="border-style: none">
+            </td>
+            <td width="75%" valign="middle">
+              <a href="https://arxiv.org/pdf/2207.00202.pdf">
+                <papertitle>DiffPills: Differentiable Collision Detection for Capsules and Padded Polygons</papertitle>
+              </a>
+              <br>
+              <strong>Kevin Tracy</strong>,
+              <a href="https://thowell.github.io/">Taylor Howell</a>,
+              <a href="https://www.ri.cmu.edu/ri-faculty/zachary-manchester/">Zac Manchester</a>
+              <br>
+              <!-- <em>ICCV 3DRR Workshop</em>, 2011 -->
+              <br>
+              <a href="https://arxiv.org/abs/2207.00202">arXiv</a> /
+              <a href="https://github.com/kevin-tracy/DiffPills.jl">code</a> 
+              <!-- <a href="https://drive.google.com/file/d/1qf4-U5RhSw12O7gzQwW66SMQhs2FWYDW/view?usp=sharing">"smoothing" code</a> -->
+              <p>DiffPills computes collision information between capsules and padded polygons by forming a differentiable quadratic program.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px;width:25%;vertical-align:middle">
+              <img src="images/calipso.gif" alt="b3do" width="160" style="border-style: none">
+            </td>
+            <td width="75%" valign="middle">
+              <a href="https://arxiv.org/pdf/2205.09255.pdf">
+                <papertitle>CALIPSO: A Differentiable Solver for Trajectory Optimization with Conic and Complementarity Constraints</papertitle>
+              </a>
+              <br>
+              <a href="https://thowell.github.io/">Taylor Howell</a>,
+              <strong>Kevin Tracy</strong>,
+              <a href="https://msl.stanford.edu/people/simonlecleach">Simon Le Cleac'h</a>,
+              <a href="https://www.ri.cmu.edu/ri-faculty/zachary-manchester/">Zac Manchester</a>
+              <br>
+              <em>ISRR</em>, 2022
+              <br>
+              <a href="https://arxiv.org/abs/2205.09255">arXiv</a> /
+              <a href="https://github.com/thowell/CALIPSO.jl">code</a> 
+              <!-- <a href="https://drive.google.com/file/d/1qf4-U5RhSw12O7gzQwW66SMQhs2FWYDW/view?usp=sharing">"smoothing" code</a> -->
+              <p>CALIPSO is a nonlinear programming solver that combines a primal-dual augmented Lagrangian with primal-dual interior point methods to handle the types of conic and complimentarity problems that arise in robotic motion planning problems with contact.</p>
             </td>
           </tr>
 
-           <tr bgcolor="#ffffd0" >
+           <!-- <tr bgcolor="#ffffd0" > -->
+            <tr>
             <td style="padding:20px;width:25%;vertical-align:middle">
-              <img src="images/B3DO.jpg" alt="b3do" width="160" style="border-style: none">
+              <img src="images/wigglesat.png" alt="b3do" width="160" style="border-style: none">
             </td>
             <td width="75%" valign="middle">
-              <a href="https://drive.google.com/file/d/1_S8EQyngbHQrB415o0XkQ4V9SMzdEgWT/view?usp=sharing">
-                <papertitle>A Category-Level 3-D Object Dataset: Putting the Kinect to Work</papertitle>
+              <a href="http://roboticexplorationlab.org/papers/ktracy_finepointing.pdf">
+                <papertitle>Ultra-Fine Pointing for Nanosatellite Telescopes With Actuated Booms</papertitle>
               </a>
               <br>
-              <a href="http://www.eecs.berkeley.edu/%7Eallie/">Allison Janoch</a>,
-              <a href="http://sergeykarayev.com/">Sergey Karayev</a>,
-              <a href="http://www.eecs.berkeley.edu/%7Ejiayq/">Yangqing Jia</a>,
-              <strong>Jonathan T. Barron</strong>,
-              <a href="http://www.cs.berkeley.edu/%7Emfritz/">Mario Fritz</a>,
-              <a href="http://www.icsi.berkeley.edu/%7Esaenko/">Kate Saenko</a>,
-              <a href="http://www.eecs.berkeley.edu/%7Etrevor/">Trevor Darrell</a>
+              <strong>Kevin Tracy</strong>,
+              <a href="https://www.ri.cmu.edu/ri-faculty/zachary-manchester/">Zac Manchester</a>
+              <a href="https://www.as.arizona.edu/people/faculty/ewan-douglas">Ewan Douglas</a>,
               <br>
-              <em>ICCV 3DRR Workshop</em>, 2011
-              <br>
-              <br>
-			    <em>CVPR</em>, 2022 &nbsp <font color="red"><strong>(Oral Presentation, Best Student Paper Honorable Mention)</strong></font>
+              <!-- <em>IEEE Aerospace Conference</em>, 2022 -->
+              <!-- <br> -->
+              <!-- <br> -->
+			    <em>IEEE Aerospace Conf.</em>, 2022, &nbsp <font color="red"><strong> Best Paper (Avionics and Electronics for Space Applications)</strong></font>
 			   <br>
-              <a href="data/B3DO_ICCV_2011.bib">bibtex</a> /
-              <a href="https://drive.google.com/file/d/1qf4-U5RhSw12O7gzQwW66SMQhs2FWYDW/view?usp=sharing">"smoothing" code</a>
-              <p>We present a large RGB-D dataset of indoor scenes and investigate ways to improve object detection using depth information.</p>
+              <a href="http://roboticexplorationlab.org/papers/ktracy_finepointing.pdf">pdf</a> 
+              <!-- <a href="https://drive.google.com/file/d/1qf4-U5RhSw12O7gzQwW66SMQhs2FWYDW/view?usp=sharing">"smoothing" code</a> -->
+              <p>A control and estimation framework is proposed for a fine pointing cubesat where traditional reaction wheels are swapped for three actuated booms with tip-mounted masses. </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px;width:25%;vertical-align:middle">
+              <img src="images/cpeg.png" alt="b3do" width="160" style="border-style: none">
+            </td>
+            <td width="75%" valign="middle">
+              <a href="http://roboticexplorationlab.org/papers/ktracy_cpeg.pdf">
+                <papertitle>CPEG: A Convex Predictor-corrector Entry Guidance Algorithm</papertitle>
+              </a>
+              <br>
+              <strong>Kevin Tracy</strong>,
+              <a href="https://www.ri.cmu.edu/ri-faculty/zachary-manchester/">Zac Manchester</a>
+              <br>
+              <!-- <em>IEEE Aerospace Conference</em>, 2022 -->
+              <!-- <br> -->
+              <!-- <br> -->
+          <em>IEEE Aerospace Conf.</em>, 2022
+         <br>
+              <a href="http://roboticexplorationlab.org/papers/ktracy_cpeg.pdf">pdf</a> /
+              <a href="https://github.com/RoboticExplorationLab/EntryGuidance.jl">code</a> 
+              <!-- <a href="https://drive.google.com/file/d/1qf4-U5RhSw12O7gzQwW66SMQhs2FWYDW/view?usp=sharing">"smoothing" code</a> -->
+              <p>CPEG is an online-capable tool for optimal entry guidance in the Martian atmosphere. </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px;width:25%;vertical-align:middle">
+              <img src="images/planningwa.png" alt="b3do" width="160" style="border-style: none">
+            </td>
+            <td width="75%" valign="middle">
+              <a href="https://ieeexplore.ieee.org/document/9326337">
+                <papertitle>Planning With Attitude</papertitle>
+              </a>
+              <br>
+              <a href="https://bjack205.github.io/">Brian Jackson</a>
+              <strong>Kevin Tracy</strong>,
+              <a href="https://www.ri.cmu.edu/ri-faculty/zachary-manchester/">Zac Manchester</a>
+              <br>
+              <!-- <em>IEEE Aerospace Conference</em>, 2022 -->
+              <!-- <br> -->
+              <!-- <br> -->
+          <em>IEEE RA-L</em>, 2022
+         <br>
+              <a href="http://roboticexplorationlab.org/papers/ktracy_cpeg.pdf">pdf</a> /
+              <a href="https://github.com/RoboticExplorationLab/EntryGuidance.jl">code</a> 
+              <!-- <a href="https://drive.google.com/file/d/1qf4-U5RhSw12O7gzQwW66SMQhs2FWYDW/view?usp=sharing">"smoothing" code</a> -->
+              <p>CPEG is an online-capable tool for optimal entry guidance in the Martian atmosphere. </p>
             </td>
           </tr>
 
