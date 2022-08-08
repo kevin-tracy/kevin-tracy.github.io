@@ -129,3 +129,9 @@ name {
 span.highlight {
   background-color: #ffffd0;
 }
+/*table tr:nth-child(odd) td{
+           background:#fff;
+}
+table tr:nth-child(even) td{
+            background:#eee;
+}*/
