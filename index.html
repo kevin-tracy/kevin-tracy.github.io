@@ -7,7 +7,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   
   <link rel="stylesheet" type="text/css" href="stylesheet.css">
-	<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>">
+	<!-- <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>"> -->
+  <link rel="icon" href="images/icons/rocket.svg">
 </head>
 
 <body>
@@ -20,7 +21,13 @@
               <p style="text-align:center">
                 <name>Kevin S. Tracy</name>
               </p>
-              <p>I am a PhD student in  <a href="https://www.ri.cmu.edu/">The Robotics Institute</a>, a part of the <a href="https://www.cs.cmu.edu/">School of Computer Science</a> at <a href="https://www.cmu.edu/">Carnegie Mellon University</a>. I am advised by <a href="https://www.ri.cmu.edu/ri-faculty/zachary-manchester/">Zac Manchester</a> as a member of the <a href="http://roboticexplorationlab.org/">Robotic Exploration Lab</a>. 
+              <p>
+                I am a PhD student in  <a href="https://www.ri.cmu.edu/">The Robotics Institute</a> 
+                at <a href="https://www.cmu.edu/">Carnegie Mellon University</a> advised 
+                by <a href="https://www.ri.cmu.edu/ri-faculty/zachary-manchester/">Zac Manchester</a>. 
+                I am also a student researcher at <a href="https://www.intrinsic.ai">[Google] Intrinsic</a>,
+                working with <a href="https://stefan-schaal.net/">Stefan Schaal</a> on contact-rich manipulation.
+              </p>
               <p>
                 I did my BS in Mechanical Engineering at <a href="https://www.rice.edu/">Rice University</a>, and my MS in Mechanical Engineering at <a href="https://www.stanfordedu/">Stanford University</a> with a concentration in dynamics.  At Stanford I served as a teaching assistant to <a href="https://profiles.stanford.edu/stephen-rock">Stephen Rock</a> for <a href="https://explorecourses.stanford.edu/search?q=ENGR205">Control Design Techniques</a>, and <a href="https://web.stanford.edu/~schwager/">Mac Schwager</a> for <a href="https://online.stanford.edu/courses/aa273-state-estimation-and-filtering-robotic-perception">State Estimation and Filtering for Robotic Perception</a>.
               </p>
@@ -54,6 +61,81 @@
         <table style="width:100%;border:0px;border-spacing:0px;border-collapse:separate;margin-right:auto;margin-left:auto;"><tbody>
 
 					
+          <tr bgcolor=#eee>
+            <td style="padding:20px;width:25%;vertical-align:middle">
+              <img src="images/plug_insertion.gif" alt="b3do" width="160" style="border-style: none">
+            </td>
+            <td width="75%" valign="middle">
+              <a href="https://model-based-plugging.github.io">
+                <papertitle>Efficient Online Learning of Contact Force Models for Connector Insertion</papertitle>
+              </a>
+              <br>
+              <strong>Kevin Tracy</strong>,
+              <a href="https://www.ri.cmu.edu/ri-faculty/zachary-manchester/"> Zac Manchester</a>,
+              <a href="https://jainajinkya.github.io/"> Ajinkya Jain</a>,
+              <a href="https://intrinsic.ai/"> Keegan Go</a>,
+              <a href="https://stefan-schaal.net/"> Stefan Schaal</a>,
+              <a href="https://scholar.google.com/citations?user=gVFnjOcAAAAJ&hl=en"> Tom Erez</a>,
+              <a href="https://scholar.google.com/citations?user=CjOTm_4AAAAJ&hl=en"> Yuval Tassa</a>
+
+              <br>
+              <em>in review</em>
+              <br>
+              <a href="https://model-based-plugging.github.io">website</a> /
+              <a href="https://arxiv.org/abs/2207.00669">arXiv</a> 
+              <!-- <a href="https://drive.google.com/file/d/1qf4-U5RhSw12O7gzQwW66SMQhs2FWYDW/view?usp=sharing">"smoothing" code</a> -->
+              <p>A method for learning contact force models from data in a way that scales very well on a GPU with a novel Linear Model Learning (LML) algorithm.</p>
+            </td>
+          </tr>
+
+		      <tr>
+            <td style="padding:20px;width:25%;vertical-align:middle">
+              <img src="images/relu_qp.gif" alt="b3do" width="160" style="border-style: none">
+            </td>
+            <td width="75%" valign="middle">
+              <a href="https://arxiv.org/pdf/2311.18056.pdf">
+                <papertitle>ReLU-QP: A GPU-Accelerated Quadratic Programming Solver for Model-Predictive Control</papertitle>
+              </a>
+              <br>
+              <a href="https://www.linkedin.com/in/arun-bishop/">Arun L. Bishop</a>,
+              <a href="https://johnzhang3.github.io/">John Z. Zhang</a>,
+              <a href="https://swami1995.github.io/">Swaminathan Gurumurthy</a>,
+              <strong>Kevin Tracy</strong>,
+              <a href="https://www.ri.cmu.edu/ri-faculty/zachary-manchester/">Zac Manchester</a>
+              <br>
+              <em>in review</em>
+              <br>
+              <a href="https://arxiv.org/abs/2311.18056">arXiv</a> /
+              <a href="https://github.com/RoboticExplorationLab/ReLUQP.jl">code</a> 
+              <!-- <a href="https://www.youtube.com/watch?v=GhhawnKbQW8&t=71s">video</a> -->
+              <!-- <a href="https://drive.google.com/file/d/1qf4-U5RhSw12O7gzQwW66SMQhs2FWYDW/view?usp=sharing">"smoothing" code</a> -->
+              <p>An ADMM based QP solver that runs on a GPU and can handle very large MPC problems commonly found in robotics.</p>
+            </td>
+          </tr>
+          
+          <tr bgcolor=#eee>
+            <td style="padding:20px;width:25%;vertical-align:middle">
+              <img src="images/qd_point_cloud.gif" alt="b3do" width="160" style="border-style: none">
+            </td>
+            <td width="75%" valign="middle">
+              <a href="https://openreview.net/pdf?id=eoyz1aX9rs">
+                <papertitle>Convex Quasi-Dynamic Simulation of Rigid Point Clouds with Torsional Friction</papertitle>
+              </a>
+              <br>
+              <strong>Kevin Tracy</strong>,
+              <a href="https://thowell.github.io/">Taylor Howell</a>,
+              <a href="https://www.ri.cmu.edu/ri-faculty/zachary-manchester/">Zac Manchester</a>
+              <br>
+              <em>IROS Workshop on Leveraging Models for Contact-Rich Manipulation</em>, 2023
+              <br>
+              <a href="https://openreview.net/pdf?id=eoyz1aX9rs">pdf</a> 
+              <!-- <a href="https://github.com/kevin-tracy/DifferentiableCollisions.jl">code</a> / -->
+              <!-- <a href="https://www.youtube.com/watch?v=GhhawnKbQW8&t=71s">video</a>  -->
+              <!-- <a href="https://drive.google.com/file/d/1qf4-U5RhSw12O7gzQwW66SMQhs2FWYDW/view?usp=sharing">"smoothing" code</a> -->
+              <p>A quasi-dynamic rigid-body simulator for point clouds with tangential and torsional friction for each of the points. The result is stable and fast simulation with a QP solver.</p>
+            </td>
+          </tr>
+
 		      <tr>
             <td style="padding:20px;width:25%;vertical-align:middle">
               <img src="images/dcol.gif" alt="b3do" width="160" style="border-style: none">
@@ -67,7 +149,7 @@
               <a href="https://thowell.github.io/">Taylor Howell</a>,
               <a href="https://www.ri.cmu.edu/ri-faculty/zachary-manchester/">Zac Manchester</a>
               <br>
-              <!-- <em>ICCV 3DRR Workshop</em>, 2011 -->
+              <em>ICRA</em>, 2023
               <br>
               <a href="https://arxiv.org/abs/2207.00669">arXiv</a> /
               <a href="https://github.com/kevin-tracy/DifferentiableCollisions.jl">code</a> /
@@ -270,7 +352,7 @@
               <!-- <em>IEEE Aerospace Conference</em>, 2022 -->
               <!-- <br> -->
               <!-- <br> -->
-          <em>Frontiers in Astronomy and Space Sciences, Volume 8,</em>, 2021
+          <em>Frontiers in Astronomy and Space Sciences, Volume 8,</em> 2021
          <br>
               <a href="https://www.frontiersin.org/articles/10.3389/fspas.2021.676252/full">pdf</a>  /
               <a href="https://arxiv.org/abs/2112.12835">arXiv</a> 
