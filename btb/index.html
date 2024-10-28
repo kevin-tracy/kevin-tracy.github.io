@@ -176,7 +176,7 @@
         <h2 class="title is-3">Abstract</h2>
         <div class="content has-text-justified">
           <p>
-            We present a method for derivative-free trajectory optimization where the discrete-time dynamics are approximated with sampled trajectories instead of a linearized dynamics model. This enables trajectory optimization on dynamics models where derivatives are either unavailable or unreliable for approximation. 
+            We present a method for trajectory optimization with multiple shooting that does not rely on a linearization of the dynamics model. In each iteration of the solver, the dynamics are approximated with a bundle of short-horizon trajectories instead of a first-order Taylor series. This approach is ideal for simulators where parallelized rollouts are inexpensive and dynamics derivatives are either unavailable or unreliable for approximation. 
           </p>
         </div>
       </div>
@@ -193,28 +193,31 @@
         <h2 class="title is-3">Multiple Shooting</h2>
         <div class="content has-text-justified">
           <p>
-            Multiple shooting is a method for solving trajectory optimization problems by breaking up a trajectory into chunks and directly constraining these chunks to be dynamically feasible. 
+            Multiple shooting is a method for solving trajectory optimization problems by breaking up a trajectory into chunks and directly constraining these chunks to share common endpoints.
           </p>
+          <br>
           <center>
           <img src="./static/images/multiple_shooting.png" alt="here is my description of the graph">
           </center>
-
+          <br>
 
           <p>
-            A trajectory optimization problem can be written as the following:
+            This trajectory optimization problem can be written as the following:
           $$
                 \begin{align}
-                \min_{x_{1:N}, u_{1:N-1}} \quad & J(x, u) \nonumber \\
-                \text{st} \quad & x_{i+1} = f(x_i, u_i), \nonumber 
+                \min_{x_{0:N}, u_{0:N-1}} \quad & J(x, u) \nonumber \\
+                \text{st} \quad & x_{i+1} = f(x_i, u_i), \nonumber \\ 
+                & x_0 = x_0, \nonumber\\ 
+                & x_N = x_f,\nonumber
                 \end{align}
           $$
-          where $f(x,u)$ is the discrete-time dynamics function.  Many solution methods for these problems rely on approximating the dynamics function as linear with a first-order Taylor series:
+          where $f(x,u)$ is the discrete-time dynamics function.  Common solution methods for these problems rely on approximating the dynamics function as linear with a first-order Taylor series:
           $$
           \begin{align}
-          x_{i+1} &\approx f(\bar{x}, \bar{u}) + \frac{\partial f}{\partial x} (x_i - \bar{x}) + \frac{\partial f}{\partial u} (u_i - \bar{u}).
+          x_{i+1} &\approx f(\bar{x}, \bar{u}) + \frac{\partial f}{\partial x} (x_i - \bar{x}) + \frac{\partial f}{\partial u} (u_i - \bar{u}), \nonumber
           \end{align}
           $$
-          The challenge here is that the dynamics model is assumed to be both smooth and differentiable. This makes trajectory optimization challenging for dynamics models where derivatives are either not available, or non-smoothness in the dynamics makes these derivatives unreliable. 
+          where the Jacobians of the dynamics with respect to both state and control must be available.  This makes trajectory optimization challenging for dynamics models where derivatives are either not available, or non-smoothness in the dynamics makes these derivatives unreliable. 
           </p>
         </div>
       </div>
@@ -231,7 +234,7 @@
         <h2 class="title is-3">Blended Trajectory Bundles</h2>
         <div class="content has-text-justified">
           <p>
-            Instead of approximating the dynamics function with a linearization, a collection of local dynamics rollouts can be used to form a basis for linear interpolation. By sampling initial states and controls to create a bundle of trajectories, a blended linear combination of these rollouts can be used to approximate the true function without any derivatives.
+            Instead of approximating the dynamics function with a linearization, a collection of local dynamics rollouts can be used to form a basis for linear interpolation. By sampling initial states and controls around a nominal point to create a bundle of trajectories, a blended linear combination of these rollouts can be used to approximate the true function without any need to differentiate the dynamics.
           </p>
             <br>
           <center>
@@ -239,7 +242,26 @@
           </center>
           <br>
           <p>
-            The rollouts required to create these trajectory bundles can be evaluated in parallel for each chunk of the trajectory, and the the multiple shooting problem becomes the following:
+            The rollouts required to create these trajectory bundles can be evaluated in parallel both for each sample, as well as for each chunk of the trajectory.
+          </p>
+          
+
+        </div>
+      </div>
+    </div>
+    <!--/ Abstract. -->
+  </div>
+  <br>
+  <br>
+  <br>
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Multiple Shooting with Blended Trajectory Bundles</h2>
+        <div class="content has-text-justified">
+          <p>
+            For a multiple shooting trajectory optimization problem, each chunk of the trajectory has an initial state $x_-$ and a final state $x_+$. By constraining these chunks to share common endpoints, a dynamically feasible trajectory can be recovered.
           </p>
           <br>
           <center>
@@ -247,12 +269,16 @@
           </center>
           <br>
           <p>
-          The solve for an optimal trajectory given the current trajectory bundles, a convex optimization problem is formed where the dynamics are approximated with blended trajectory bundles:
+            Given the approximation of the dynamics with blended trajectory bundles, a single iteration of this method involves solving the following convex optimization problem over the $p$ chunks of the trajectory:
           </p>
           <br>
           <center>
           <img src="./static/images/opt.png" alt="here is my description of the graph">
           </center>
+          <br>
+          <p>
+            After this problem is solved, the updated states and controls at each chunk are used to form new trajectory bundles, and the process repeats until convergence.
+          </p>
 
         </div>
       </div>
@@ -269,7 +295,7 @@
         <h2 class="title is-3">Quadrotor Acrobatics</h2>
         <div class="content has-text-justified">
           <p>
-            In this example, a quadrotor with rotor velocity control is given a trajectory to track that requires aggresive maneuvering. This involves rapid translational and angular accelerations that make the dynamics highly nonlinear. Using blended trajectory bundles and convex optimization, an optimal trajectory is solved for without any need for dynamics derivatives:
+            In this example, a quadrotor with rotor velocity control is given a trajectory to track that requires aggressive maneuvering. This involves rapid translational and angular accelerations that make the dynamics highly nonlinear. Using blended trajectory bundles and convex optimization, an optimal trajectory is solved for without any need for dynamics derivatives:
           </p>
           <br>
           <center>
@@ -304,7 +330,7 @@
         <h2 class="title is-3">Cartpole Swingup</h2>
         <div class="content has-text-justified">
           <p>
-            In this example, a quadrotor with rotor velocity control is given a trajectory to track that requires aggresive maneuvering. This involves rapid translational and angular accelerations that make the dynamics highly nonlinear. Using blended trajectory bundles and convex optimization, an optimal trajectory is solved for without any need for dynamics derivatives:
+            In this example, the classic cartpole swingup task is solved for using the proposed method. The system is constrained to reach the goal state at the end of the trajectory.
           </p>
           <br>
           <center>
@@ -314,7 +340,7 @@
             </video>
           </center>
           <br>
-          The convergence of this method on the optimal solution is shown below, where the states are shown with the constraint violation (defects) as a function of the iteration number.
+          The convergence of this method to the optimal solution is shown below, where the states are shown with the constraint violation (defects) as a function of the iteration number.
           <br>
           <center>
             <video autoplay muted controls loop width="100%" height="auto">
