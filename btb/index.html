@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="Derivative-Free Multiple Shooting With Blended Trajectory Bundles">
+  <meta name="keywords" content="Nerfies, D-NeRF, NeRF">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- KaTeX -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css"
+    integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn"
+    crossorigin="anonymous"
+  />
+  <script
+    defer
+    src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"
+    integrity="sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    defer
+    src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"
+    integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05"
+    crossorigin="anonymous"
+  ></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      renderMathInElement(document.body, {
+        // customised options
+        // • auto-render specific keys, e.g.:
+        delimiters: [
+          { left: "$$", right: "$$", display: true },
+          { left: "$", right: "$", display: false },
+          { left: "\\(", right: "\\)", display: false },
+          { left: "\\[", right: "\\]", display: true },
+        ],
+        // • rendering keys, e.g.:
+        throwOnError: false,
+      });
+    });
+  </script>
+  <title>Derivative-Free Multiple Shooting With Blended Trajectory Bundles</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+  <link rel="icon" href="./static/images/favicon.svg">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+  <script src="./static/js/bulma-carousel.min.js"></script>
+  <script src="./static/js/bulma-slider.min.js"></script>
+  <script src="./static/js/index.js"></script>
+
+
+</head>
+<body>
+
+
+
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">Derivative-Free Multiple Shooting With Blended Trajectory Bundles</h1>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a href="https://kevintracy.info">Kevin Tracy</a><sup>1</sup>,
+            </span>
+            <span class="author-block">
+              <a href="https://intrinsic.ai/">Yuval Tassa</a><sup>2</sup>,
+            </span>
+            <span class="author-block">
+              <a href="https://jainajinkya.github.io/">Tom Erez</a><sup>2</sup>,
+            </span>
+            <br>
+            <span class="author-block">
+              <a href="https://stefan-schaal.net/">Stefan Schaal</a><sup>3</sup>,
+            </span>
+            <span class="author-block">
+              <a href="https://rexlab.ri.cmu.edu/">Zachary Manchester</a><sup>1</sup>
+            </span>
+          </div>
+
+          <div class="is-size-5 publication-authors">
+            <span class="author-block"><sup>1</sup>CMU,</span>
+            <span class="author-block"><sup>2</sup>DeepMind,</span>
+
+            <span class="author-block"><sup>3</sup>Intrinsic</span>
+          </div>
+
+          <div class="column has-text-centered">
+            <div class="publication-links">
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+
+<!-- <center>
+  <video autoplay muted controls loop width="50%" height="auto">
+    <source src="./static/videos/cartpole_mj.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+</center>
+
+<center>
+  <video autoplay muted controls loop width="50%" height="auto">
+    <source src="./static/videos/cartpoleweb.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+</center>
+
+<center>
+  <video autoplay muted controls loop width="50%" height="auto">
+    <source src="./static/videos/drone_mj.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+</center>
+
+<center>
+  <video autoplay muted controls loop width="50%" height="auto">
+    <source src="./static/videos/droneweb.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+</center>
+ -->
+
+
+
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <!-- <h2 class="title is-3">Abstract</h2> -->
+        <div class="content has-text-justified">
+          <p style="margin-top: -70px;">
+
+          <center>
+            <span style="color: red; font-weight: bold;">NOTE: This project is still in progress.</span>
+          </center>
+        </p>
+          <!-- <center>
+            <span style="color: red; font-weight: bold;">NOTE: This project is still in progress.</span>
+          </center> -->
+          <br>
+          
+        </div>
+      </div>
+    </div>
+    <!--/ Abstract. -->
+  </div>
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            We present a method for derivative-free trajectory optimization where the discrete-time dynamics are approximated with sampled trajectories instead of a linearized dynamics model. This enables trajectory optimization on dynamics models where derivatives are either unavailable or unreliable for approximation. 
+          </p>
+        </div>
+      </div>
+    </div>
+    <!--/ Abstract. -->
+  </div>
+  <br>
+  <br>
+  <br>
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Multiple Shooting</h2>
+        <div class="content has-text-justified">
+          <p>
+            Multiple shooting is a method for solving trajectory optimization problems by breaking up a trajectory into chunks and directly constraining these chunks to be dynamically feasible. 
+          </p>
+          <center>
+          <img src="./static/images/multiple_shooting.png" alt="here is my description of the graph">
+          </center>
+
+
+          <p>
+            A trajectory optimization problem can be written as the following:
+          $$
+                \begin{align}
+                \min_{x_{1:N}, u_{1:N-1}} \quad & J(x, u) \nonumber \\
+                \text{st} \quad & x_{i+1} = f(x_i, u_i), \nonumber 
+                \end{align}
+          $$
+          where $f(x,u)$ is the discrete-time dynamics function.  Many solution methods for these problems rely on approximating the dynamics function as linear with a first-order Taylor series:
+          $$
+          \begin{align}
+          x_{i+1} &\approx f(\bar{x}, \bar{u}) + \frac{\partial f}{\partial x} (x_i - \bar{x}) + \frac{\partial f}{\partial u} (u_i - \bar{u}).
+          \end{align}
+          $$
+          The challenge here is that the dynamics model is assumed to be both smooth and differentiable. This makes trajectory optimization challenging for dynamics models where derivatives are either not available, or non-smoothness in the dynamics makes these derivatives unreliable. 
+          </p>
+        </div>
+      </div>
+    </div>
+    <!--/ Abstract. -->
+  </div>
+    <br>
+  <br>
+  <br>
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Blended Trajectory Bundles</h2>
+        <div class="content has-text-justified">
+          <p>
+            Instead of approximating the dynamics function with a linearization, a collection of local dynamics rollouts can be used to form a basis for linear interpolation. By sampling initial states and controls to create a bundle of trajectories, a blended linear combination of these rollouts can be used to approximate the true function without any derivatives.
+          </p>
+            <br>
+          <center>
+          <img src="./static/images/btb.png" alt="here is my description of the graph">
+          </center>
+          <br>
+          <p>
+            The rollouts required to create these trajectory bundles can be evaluated in parallel for each chunk of the trajectory, and the the multiple shooting problem becomes the following:
+          </p>
+          <br>
+          <center>
+          <img src="./static/images/multiple_btb.png" alt="here is my description of the graph">
+          </center>
+          <br>
+          <p>
+          The solve for an optimal trajectory given the current trajectory bundles, a convex optimization problem is formed where the dynamics are approximated with blended trajectory bundles:
+          </p>
+          <br>
+          <center>
+          <img src="./static/images/opt.png" alt="here is my description of the graph">
+          </center>
+
+        </div>
+      </div>
+    </div>
+    <!--/ Abstract. -->
+  </div>
+    <br>
+  <br>
+  <br>
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Quadrotor Acrobatics</h2>
+        <div class="content has-text-justified">
+          <p>
+            In this example, a quadrotor with rotor velocity control is given a trajectory to track that requires aggresive maneuvering. This involves rapid translational and angular accelerations that make the dynamics highly nonlinear. Using blended trajectory bundles and convex optimization, an optimal trajectory is solved for without any need for dynamics derivatives:
+          </p>
+          <br>
+          <center>
+            <video autoplay muted controls loop width="100%" height="auto">
+              <source src="./static/videos/drone_mj.mp4" type="video/mp4">
+              Your browser does not support the video tag.
+            </video>
+          </center>
+          <br>
+          The convergence of this method on the optimal solution is shown below, where the states are shown with the constraint violation (defects) as a function of the iteration number.
+          <br>
+          <center>
+            <video autoplay muted controls loop width="100%" height="auto">
+              <source src="./static/videos/droneweb.mp4" type="video/mp4">
+              Your browser does not support the video tag.
+            </video>
+          </center>
+
+
+        </div>
+      </div>
+    </div>
+    <!--/ Abstract. -->
+  </div>
+    <br>
+  <br>
+  <br>
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Cartpole Swingup</h2>
+        <div class="content has-text-justified">
+          <p>
+            In this example, a quadrotor with rotor velocity control is given a trajectory to track that requires aggresive maneuvering. This involves rapid translational and angular accelerations that make the dynamics highly nonlinear. Using blended trajectory bundles and convex optimization, an optimal trajectory is solved for without any need for dynamics derivatives:
+          </p>
+          <br>
+          <center>
+            <video autoplay muted controls loop width="100%" height="auto">
+              <source src="./static/videos/cartpole_mj.mp4" type="video/mp4">
+              Your browser does not support the video tag.
+            </video>
+          </center>
+          <br>
+          The convergence of this method on the optimal solution is shown below, where the states are shown with the constraint violation (defects) as a function of the iteration number.
+          <br>
+          <center>
+            <video autoplay muted controls loop width="100%" height="auto">
+              <source src="./static/videos/cartpoleweb.mp4" type="video/mp4">
+              Your browser does not support the video tag.
+            </video>
+          </center>
+
+
+        </div>
+      </div>
+    </div>
+    <!--/ Abstract. -->
+  </div>
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Satellite Slew</h2>
+        <div class="content has-text-justified">
+          <p>
+            In this example, a satellite is required to do a large slew from one attitude to another. Due to the angular velocities required during the slew, the dynamics are highly nonlinear.
+          </p>
+          <br>
+          <center>
+            <video autoplay muted controls loop width="100%" height="auto">
+              <source src="./static/videos/satelliteweb.mp4" type="video/mp4">
+              Your browser does not support the video tag.
+            </video>
+          </center>
+
+
+        </div>
+      </div>
+    </div>
+    <!--/ Abstract. -->
+  </div>
+<!-- </section> -->
+
+<!-- <section class="section"> -->
+  <br>
+  <br>
+  
+</section>
+
+
+<!-- <section class="section" id="BibTeX">
+  <div class="container is-max-desktop content">
+    <h2 class="title">BibTeX</h2>
+    <pre><code>@article{park2021nerfies,
+  author    = {Park, Keunhong and Sinha, Utkarsh and Barron, Jonathan T. and Bouaziz, Sofien and Goldman, Dan B and Seitz, Steven M. and Martin-Brualla, Ricardo},
+  title     = {Nerfies: Deformable Neural Radiance Fields},
+  journal   = {ICCV},
+  year      = {2021},
+}</code></pre>
+  </div>
+</section> -->
+
+
+<footer class="footer">
+  <div class="container">
+
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content">
+          <p>
+            This page is based on the  <a
+              href="https://github.com/nerfies/nerfies.github.io">Nerfies</a> template.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
