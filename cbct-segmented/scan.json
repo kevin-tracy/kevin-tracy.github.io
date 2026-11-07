@@ -1,0 +1,582 @@
+{
+ "format": "fmt-scan/2",
+ "window": [
+  -500.0,
+  2500.0
+ ],
+ "base": {
+  "file": "base.bin",
+  "bytes": 2473240,
+  "dims": [
+   268,
+   268,
+   184
+  ],
+  "spacing_mm": [
+   0.6,
+   0.6,
+   0.6
+  ],
+  "sections": [
+   {
+    "name": "density",
+    "offset": 0,
+    "length": 2062934,
+    "dims": [
+     268,
+     268,
+     184
+    ]
+   },
+   {
+    "name": "labels",
+    "offset": 2062934,
+    "length": 397183,
+    "dims": [
+     268,
+     268,
+     184
+    ]
+   },
+   {
+    "name": "occ",
+    "offset": 2460117,
+    "length": 9683,
+    "dims": [
+     34,
+     34,
+     23
+    ]
+   },
+   {
+    "name": "lmask",
+    "offset": 2469800,
+    "length": 3440,
+    "dims": [
+     34,
+     34,
+     23
+    ]
+   }
+  ]
+ },
+ "bricks": {
+  "dims": [
+   34,
+   34,
+   23
+  ],
+  "base_voxels": 8
+ },
+ "fine": {
+  "file": "fine.bin",
+  "bytes": 11298021,
+  "spacing_mm": [
+   0.3,
+   0.3,
+   0.3
+  ],
+  "brick": 16,
+  "apron": 1,
+  "chunks": [
+   {
+    "offset": 0,
+    "length": 231230,
+    "count": 96,
+    "group": "teeth"
+   },
+   {
+    "offset": 231230,
+    "length": 228197,
+    "count": 96,
+    "group": "teeth"
+   },
+   {
+    "offset": 459427,
+    "length": 229761,
+    "count": 96,
+    "group": "teeth"
+   },
+   {
+    "offset": 689188,
+    "length": 251148,
+    "count": 96,
+    "group": "teeth"
+   },
+   {
+    "offset": 940336,
+    "length": 248328,
+    "count": 96,
+    "group": "teeth"
+   },
+   {
+    "offset": 1188664,
+    "length": 229036,
+    "count": 96,
+    "group": "teeth"
+   },
+   {
+    "offset": 1417700,
+    "length": 221670,
+    "count": 96,
+    "group": "teeth"
+   },
+   {
+    "offset": 1639370,
+    "length": 23772,
+    "count": 10,
+    "group": "teeth"
+   },
+   {
+    "offset": 1663142,
+    "length": 171048,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 1834190,
+    "length": 201476,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 2035666,
+    "length": 187753,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 2223419,
+    "length": 179005,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 2402424,
+    "length": 168749,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 2571173,
+    "length": 172955,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 2744128,
+    "length": 181359,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 2925487,
+    "length": 170643,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 3096130,
+    "length": 178811,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 3274941,
+    "length": 163230,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 3438171,
+    "length": 153979,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 3592150,
+    "length": 148443,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 3740593,
+    "length": 164563,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 3905156,
+    "length": 156785,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 4061941,
+    "length": 167575,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 4229516,
+    "length": 156468,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 4385984,
+    "length": 157660,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 4543644,
+    "length": 171367,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 4715011,
+    "length": 166270,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 4881281,
+    "length": 154790,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 5036071,
+    "length": 162514,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 5198585,
+    "length": 163195,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 5361780,
+    "length": 166345,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 5528125,
+    "length": 168022,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 5696147,
+    "length": 165011,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 5861158,
+    "length": 169762,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 6030920,
+    "length": 174459,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 6205379,
+    "length": 172139,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 6377518,
+    "length": 174929,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 6552447,
+    "length": 170472,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 6722919,
+    "length": 167896,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 6890815,
+    "length": 166003,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 7056818,
+    "length": 169802,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 7226620,
+    "length": 172638,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 7399258,
+    "length": 168218,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 7567476,
+    "length": 170305,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 7737781,
+    "length": 169092,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 7906873,
+    "length": 161242,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 8068115,
+    "length": 177608,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 8245723,
+    "length": 172971,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 8418694,
+    "length": 166435,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 8585129,
+    "length": 171474,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 8756603,
+    "length": 165581,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 8922184,
+    "length": 171659,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 9093843,
+    "length": 173019,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 9266862,
+    "length": 159745,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 9426607,
+    "length": 167041,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 9593648,
+    "length": 166415,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 9760063,
+    "length": 166056,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 9926119,
+    "length": 161696,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 10087815,
+    "length": 159103,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 10246918,
+    "length": 165888,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 10412806,
+    "length": 163810,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 10576616,
+    "length": 156451,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 10733067,
+    "length": 150888,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 10883955,
+    "length": 144291,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 11028246,
+    "length": 145049,
+    "count": 96,
+    "group": "bone"
+   },
+   {
+    "offset": 11173295,
+    "length": 124726,
+    "count": 91,
+    "group": "bone"
+   }
+  ]
+ },
+ "labels": {
+  "source": "DentalSegmentator",
+  "legend": [
+   {
+    "id": 1,
+    "name": "Upper jaw",
+    "color": [
+     1.0,
+     0.94,
+     0.86
+    ]
+   },
+   {
+    "id": 2,
+    "name": "Lower jaw",
+    "color": [
+     0.98,
+     0.89,
+     0.78
+    ]
+   },
+   {
+    "id": 3,
+    "name": "Upper teeth",
+    "color": [
+     1.0,
+     0.99,
+     0.96
+    ]
+   },
+   {
+    "id": 4,
+    "name": "Lower teeth",
+    "color": [
+     0.99,
+     0.98,
+     0.93
+    ]
+   },
+   {
+    "id": 5,
+    "name": "Nerve canal",
+    "color": [
+     1.0,
+     0.78,
+     0.25
+    ],
+    "solid": 0.5
+   },
+   {
+    "id": 6,
+    "name": "Other bone",
+    "color": [
+     0.92,
+     0.89,
+     0.85
+    ]
+   },
+   {
+    "id": 7,
+    "name": "Skin & soft tissue",
+    "color": [
+     0.9,
+     0.7,
+     0.62
+    ]
+   }
+  ]
+ },
+ "levels": [
+  {
+   "id": "low",
+   "label": "Low",
+   "title": "0.6 mm",
+   "chunks": 0,
+   "bricks": 0,
+   "bytes": 2473240,
+   "gpu_bytes": 26431232
+  },
+  {
+   "id": "medium",
+   "label": "Medium",
+   "title": "0.6 mm, teeth 0.3 mm",
+   "chunks": 8,
+   "bricks": 682,
+   "bytes": 4136382,
+   "gpu_bytes": 30408656
+  },
+  {
+   "id": "high",
+   "label": "High",
+   "title": "0.6 mm, bone & teeth 0.3 mm",
+   "chunks": 66,
+   "bricks": 6245,
+   "bytes": 13771261,
+   "gpu_bytes": 62852072
+  }
+ ],
+ "defaults": {
+  "mobile": "medium",
+  "desktop": "high"
+ }
+}
