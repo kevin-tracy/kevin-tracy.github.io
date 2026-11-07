@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d10">
+<title>CBCT Viewer</title>
+<meta name="description" content="A dental cone-beam CT scan, volume rendered in the browser with WebGL2.">
+<style>
+  :root { color-scheme: dark; --bg:#0b0d10; --panel:rgba(21,24,29,.92); --line:#2a2f37; --text:#e6e8eb; --muted:#8b939e; --accent:#5aa9ff; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--text);
+    font:14px/1.35 -apple-system, system-ui, sans-serif; -webkit-user-select:none; user-select:none; overscroll-behavior:none; }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+  #top { position:fixed; top:0; left:0; right:0; display:flex; align-items:center; gap:10px;
+    padding:calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 12px) 8px calc(env(safe-area-inset-left) + 12px);
+    pointer-events:none; }
+  #top a, #top button { pointer-events:auto; }
+  #top a { color:var(--muted); text-decoration:none; font-size:13px; }
+  #top .title { font-weight:600; }
+  #top .sp { flex:1; }
+  #stats { color:var(--muted); font:11px/1.3 ui-monospace, Menlo, monospace; text-align:right; white-space:pre; }
+  #panel { position:fixed; left:0; right:0; bottom:0; background:var(--panel); border-top:1px solid var(--line);
+    padding:10px calc(env(safe-area-inset-right) + 12px) calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + 12px);
+    display:flex; flex-direction:column; gap:9px; -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+  .seg { display:flex; background:#1b1f25; border:1px solid var(--line); border-radius:9px; padding:2px; }
+  .seg button { flex:1; font:inherit; font-weight:500; color:var(--text); background:none; border:0; border-radius:7px; padding:7px 4px; }
+  .seg button[aria-pressed="true"] { background:var(--accent); color:#04121f; }
+  .row { display:flex; align-items:center; gap:10px; }
+  .row label { color:var(--muted); font-size:12px; min-width:3.6em; }
+  .row input[type=range] { flex:1; min-width:0; accent-color:var(--accent); height:28px; }
+  .row .val { color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; min-width:3em; text-align:right; }
+  .btn { font:inherit; font-size:13px; color:var(--text); background:#1f242b; border:1px solid var(--line); border-radius:8px; padding:6px 10px; }
+  .btn[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
+  #more { display:none; flex-direction:column; gap:6px; }
+  #panel.open #more { display:flex; }
+  .hint { color:var(--muted); font-size:12px; }
+  [hidden] { display:none !important; }
+  #status { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
+    color:var(--muted); text-align:center; padding:24px; pointer-events:none; white-space:pre-line; }
+  #bar { width:min(260px, 70vw); height:4px; background:#1f242b; border-radius:2px; overflow:hidden; }
+  #bar i { display:block; height:100%; width:0; background:var(--accent); transition:width .1s; }
+  @media (min-width:700px) { #panel { left:auto; right:16px; bottom:16px; width:380px; border:1px solid var(--line); border-radius:14px; } }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="top">
+  <a href="/" aria-label="Home">&larr;</a>
+  <span class="title">CBCT</span>
+  <span class="sp"></span>
+  <div id="stats"></div>
+</div>
+
+<div id="status"><span id="msg">Loading…</span><div id="bar"><i></i></div></div>
+
+<div id="panel">
+  <div class="seg" id="modes">
+    <button data-mode="0" aria-pressed="true">Bone</button>
+    <button data-mode="1">Teeth</button>
+    <button data-mode="2">X-ray</button>
+    <button data-mode="3">Slices</button>
+  </div>
+  <div class="seg" id="axes" hidden>
+    <button data-axis="0" aria-pressed="true">Axial</button>
+    <button data-axis="1">Coronal</button>
+    <button data-axis="2">Sagittal</button>
+  </div>
+  <div class="row" id="cutRow"><label for="cut">Cut</label><input id="cut" type="range" min="0" max="1" step="0.002" value="0"></div>
+  <div class="row" id="sliceRow" hidden><label for="slice">Slice</label><input id="slice" type="range" min="0" max="1" step="0.001" value="0.5"></div>
+  <div id="more">
+    <div class="row"><label for="lo">Min</label><input id="lo" type="range" min="-500" max="2600" step="10"><span class="val" id="loV"></span></div>
+    <div class="row"><label for="hi">Max</label><input id="hi" type="range" min="-500" max="2600" step="10"><span class="val" id="hiV"></span></div>
+    <div class="row" id="shadeRow"><label for="shade">Shading</label><input id="shade" type="range" min="0" max="1" step="0.05"><span class="val"></span></div>
+    <div class="hint" id="hint"></div>
+  </div>
+  <div class="row">
+    <button class="btn" id="moreBtn" aria-pressed="false">Adjust</button>
+    <button class="btn" id="hiDpiBtn" aria-pressed="false" title="Render at full device resolution when still (slower)">Sharp</button>
+    <span class="sp" style="flex:1"></span>
+    <button class="btn" id="resetBtn">Reset view</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+// Volume ray marcher: a WebGL2 port of the native Metal viewer. One 8-bit 3D texture
+// plus an 8^3-brick max grid for empty-space skipping. Renders only when something
+// changes, at reduced resolution while you interact and full resolution once still.
+
+const $ = (id) => document.getElementById(id);
+const MODE = { BONE: 0, TEETH: 1, MIP: 2, SLICE: 3 };
+const PRESETS = [
+  { lo: 350,  hi: 2200, shade: 0.6 },  // bone
+  { lo: 1300, hi: 2600, shade: 0.7 },  // teeth / enamel
+  { lo: 0,    hi: 2400, shade: 0 },    // x-ray (MIP)
+  { lo: -500, hi: 2500, shade: 0 },    // slices
+];
+const BG = [0.043, 0.051, 0.063];
+const BRICK = 8;
+
+const state = { mode: 0, axis: 0, slice: 0.5, cut: 0, lo: 350, hi: 2200, shade: 0.6, hiDpi: false };
+let win = [-500, 2500]; // gray values stored as 0..255 (from volume.json)
+const toStored = (g) => (g - win[0]) / (win[1] - win[0]);
+
+// ------------------------------------------------------------------ shaders
+const VS = `#version 300 es
+out vec2 vNdc;
+void main() {
+  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  vNdc = p * 2.0 - 1.0;
+  gl_Position = vec4(vNdc, 0.0, 1.0);
+}`;
+
+const FS = `#version 300 es
+precision highp float;
+precision highp sampler3D;
+in vec2 vNdc;
+out vec4 outColor;
+uniform sampler3D uVol;   // linear
+uniform sampler3D uOcc;   // nearest, per-brick max
+uniform mat4 uInvMVP;     // clip -> model space (mm, box centred at origin)
+uniform vec4 uBoxHalf;    // xyz half extents, w ray step (mm)
+uniform vec4 uFwd;        // xyz view dir in model space, w cut offset (mm)
+uniform vec4 uTf;         // lo, hi (stored 0..1), opacity scale, shading
+uniform vec4 uMisc;       // mode, slice axis, slice pos, reference step (mm)
+uniform vec4 uDims;       // voxel dims, brick size
+uniform vec4 uSlice;      // ndc->plane scale xy, pan zw
+uniform vec3 uBg;
+
+// Model space is (i, k, -j): x = patient left/right, y = superior, z = anterior.
+vec3 toTex(vec3 p, vec3 h) { vec3 n = p / (2.0 * h) + 0.5; return vec3(n.x, 1.0 - n.z, n.y); }
+vec3 toTexDir(vec3 d, vec3 h) { vec3 n = d / (2.0 * h); return vec3(n.x, -n.z, n.y); }
+float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+vec3 boneColor(float x) { return mix(vec3(0.78, 0.60, 0.47), vec3(1.0, 0.97, 0.92), clamp(x, 0.0, 1.0)); }
+
+void main() {
+  int mode = int(uMisc.x);
+  float lo = uTf.x, hi = uTf.y;
+  float invRange = 1.0 / max(hi - lo, 1e-4);
+
+  if (mode == 3) {
+    vec2 q = vNdc * uSlice.xy + uSlice.zw + 0.5;
+    if (any(lessThan(q, vec2(0.0))) || any(greaterThan(q, vec2(1.0)))) { outColor = vec4(uBg, 1.0); return; }
+    int axis = int(uMisc.y);
+    float s = uMisc.z;
+    vec3 tc;
+    if (axis == 0)      tc = vec3(q.x, 1.0 - q.y, s);
+    else if (axis == 1) tc = vec3(q.x, s, q.y);
+    else                tc = vec3(s, q.x, q.y);
+    float g = clamp((texture(uVol, tc).r - lo) * invRange, 0.0, 1.0);
+    outColor = vec4(g, g, g, 1.0);
+    return;
+  }
+
+  vec4 pn = uInvMVP * vec4(vNdc, 0.0, 1.0); pn /= pn.w;
+  vec4 pf = uInvMVP * vec4(vNdc, 1.0, 1.0); pf /= pf.w;
+  vec3 ro = pn.xyz;
+  vec3 rd = normalize(pf.xyz - pn.xyz);
+  vec3 h = uBoxHalf.xyz;
+
+  vec3 rdSafe = mix(rd, vec3(1e-6), lessThan(abs(rd), vec3(1e-6)));
+  vec3 ta = (-h - ro) / rdSafe, tb = (h - ro) / rdSafe;
+  vec3 tmin = min(ta, tb), tmax = max(ta, tb);
+  float tn = max(max(tmin.x, tmin.y), max(tmin.z, 0.0));
+  float tf = min(min(tmax.x, tmax.y), tmax.z);
+  float fd = dot(rd, uFwd.xyz);
+  if (fd > 1e-4) tn = max(tn, (uFwd.w - dot(ro, uFwd.xyz)) / fd);
+  if (tn >= tf) { outColor = vec4(uBg, 1.0); return; }
+
+  float stepMM = uBoxHalf.w;
+  float alphaExp = stepMM / uMisc.w;
+  vec3 dtc = toTexDir(rd, h);
+  vec3 voxTex = 1.0 / uDims.xyz;
+  vec3 brickTex = uDims.w * voxTex;
+  vec3 occMax = vec3(textureSize(uOcc, 0)) - 1.0;
+  vec3 L = -rd;
+
+  float t = tn + stepMM * hash12(gl_FragCoord.xy);
+  vec4 acc = vec4(0.0);
+  float mx = 0.0;
+
+  for (int iter = 0; iter < 2048; ++iter) {
+    if (t >= tf) break;
+    vec3 tc = toTex(ro + rd * t, h);
+    vec3 bf = clamp(floor(tc / brickTex), vec3(0.0), occMax);
+    float bmax = texelFetch(uOcc, ivec3(bf), 0).r;
+    float thr = (mode == 2) ? max(mx, lo) : lo;
+    if (bmax <= thr) {
+      vec3 bmin = bf * brickTex;
+      vec3 bnd = mix(bmin, bmin + brickTex, greaterThan(dtc, vec3(0.0)));
+      vec3 tt = mix(vec3(1e9), (bnd - tc) / dtc, greaterThan(abs(dtc), vec3(1e-9)));
+      float texit = min(min(tt.x, tt.y), tt.z);
+      t += max(ceil(texit / stepMM), 1.0) * stepMM;
+      continue;
+    }
+    float v = texture(uVol, tc).r;
+    if (mode == 2) {
+      mx = max(mx, v);
+      if (mx >= hi) break;
+    } else {
+      float x = (v - lo) * invRange;
+      if (x > 0.0) {
+        float a = clamp(x, 0.0, 1.0) * uTf.z;
+        a = 1.0 - pow(1.0 - min(a, 0.995), alphaExp);
+        vec3 c = boneColor(x);
+        if (uTf.w > 0.0) {
+          vec3 g = vec3(
+            texture(uVol, tc + vec3(voxTex.x, 0, 0)).r - texture(uVol, tc - vec3(voxTex.x, 0, 0)).r,
+            texture(uVol, tc + vec3(0, voxTex.y, 0)).r - texture(uVol, tc - vec3(0, voxTex.y, 0)).r,
+            texture(uVol, tc + vec3(0, 0, voxTex.z)).r - texture(uVol, tc - vec3(0, 0, voxTex.z)).r);
+          vec3 gm = vec3(g.x, g.z, -g.y);
+          float gl = length(gm);
+          if (gl > 1e-4) {
+            vec3 n = -gm / gl;
+            float diff = abs(dot(n, L));
+            float spec = pow(diff, 32.0);
+            float lit = 0.25 + 0.75 * diff + 0.3 * spec;
+            c = mix(c, c * lit, uTf.w);
+          }
+        }
+        acc.rgb += (1.0 - acc.a) * a * c;
+        acc.a += (1.0 - acc.a) * a;
+        if (acc.a > 0.97) break;
+      }
+    }
+    t += stepMM;
+  }
+
+  if (mode == 2) {
+    float g = clamp((mx - lo) * invRange, 0.0, 1.0);
+    outColor = vec4(max(uBg, vec3(g)), 1.0);
+    return;
+  }
+  outColor = vec4(acc.rgb + (1.0 - acc.a) * uBg, 1.0);
+}`;
+
+// ------------------------------------------------------------------ math (column-major)
+const quat = {
+  axisAngle(ax, a) { const s = Math.sin(a / 2); return [ax[0] * s, ax[1] * s, ax[2] * s, Math.cos(a / 2)]; },
+  mul(a, b) {
+    return [
+      a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+      a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+      a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+      a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2],
+    ];
+  },
+  norm(q) { const l = Math.hypot(...q) || 1; return q.map((v) => v / l); },
+  conj(q) { return [-q[0], -q[1], -q[2], q[3]]; },
+  rotate(q, v) { const p = quat.mul(quat.mul(q, [v[0], v[1], v[2], 0]), quat.conj(q)); return [p[0], p[1], p[2]]; },
+  toMat4([x, y, z, w]) {
+    return [
+      1 - 2 * (y * y + z * z), 2 * (x * y + z * w), 2 * (x * z - y * w), 0,
+      2 * (x * y - z * w), 1 - 2 * (x * x + z * z), 2 * (y * z + x * w), 0,
+      2 * (x * z + y * w), 2 * (y * z - x * w), 1 - 2 * (x * x + y * y), 0,
+      0, 0, 0, 1,
+    ];
+  },
+};
+function mat4mul(a, b) {
+  const o = new Array(16);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+    let s = 0;
+    for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k];
+    o[c * 4 + r] = s;
+  }
+  return o;
+}
+function mat4inv(m) {
+  const inv = new Array(16);
+  inv[0] = m[5]*m[10]*m[15]-m[5]*m[11]*m[14]-m[9]*m[6]*m[15]+m[9]*m[7]*m[14]+m[13]*m[6]*m[11]-m[13]*m[7]*m[10];
+  inv[4] = -m[4]*m[10]*m[15]+m[4]*m[11]*m[14]+m[8]*m[6]*m[15]-m[8]*m[7]*m[14]-m[12]*m[6]*m[11]+m[12]*m[7]*m[10];
+  inv[8] = m[4]*m[9]*m[15]-m[4]*m[11]*m[13]-m[8]*m[5]*m[15]+m[8]*m[7]*m[13]+m[12]*m[5]*m[11]-m[12]*m[7]*m[9];
+  inv[12] = -m[4]*m[9]*m[14]+m[4]*m[10]*m[13]+m[8]*m[5]*m[14]-m[8]*m[6]*m[13]-m[12]*m[5]*m[10]+m[12]*m[6]*m[9];
+  inv[1] = -m[1]*m[10]*m[15]+m[1]*m[11]*m[14]+m[9]*m[2]*m[15]-m[9]*m[3]*m[14]-m[13]*m[2]*m[11]+m[13]*m[3]*m[10];
+  inv[5] = m[0]*m[10]*m[15]-m[0]*m[11]*m[14]-m[8]*m[2]*m[15]+m[8]*m[3]*m[14]+m[12]*m[2]*m[11]-m[12]*m[3]*m[10];
+  inv[9] = -m[0]*m[9]*m[15]+m[0]*m[11]*m[13]+m[8]*m[1]*m[15]-m[8]*m[3]*m[13]-m[12]*m[1]*m[11]+m[12]*m[3]*m[9];
+  inv[13] = m[0]*m[9]*m[14]-m[0]*m[10]*m[13]-m[8]*m[1]*m[14]+m[8]*m[2]*m[13]+m[12]*m[1]*m[10]-m[12]*m[2]*m[9];
+  inv[2] = m[1]*m[6]*m[15]-m[1]*m[7]*m[14]-m[5]*m[2]*m[15]+m[5]*m[3]*m[14]+m[13]*m[2]*m[7]-m[13]*m[3]*m[6];
+  inv[6] = -m[0]*m[6]*m[15]+m[0]*m[7]*m[14]+m[4]*m[2]*m[15]-m[4]*m[3]*m[14]-m[12]*m[2]*m[7]+m[12]*m[3]*m[6];
+  inv[10] = m[0]*m[5]*m[15]-m[0]*m[7]*m[13]-m[4]*m[1]*m[15]+m[4]*m[3]*m[13]+m[12]*m[1]*m[7]-m[12]*m[3]*m[5];
+  inv[14] = -m[0]*m[5]*m[14]+m[0]*m[6]*m[13]+m[4]*m[1]*m[14]-m[4]*m[2]*m[13]-m[12]*m[1]*m[6]+m[12]*m[2]*m[5];
+  inv[3] = -m[1]*m[6]*m[11]+m[1]*m[7]*m[10]+m[5]*m[2]*m[11]-m[5]*m[3]*m[10]-m[9]*m[2]*m[7]+m[9]*m[3]*m[6];
+  inv[7] = m[0]*m[6]*m[11]-m[0]*m[7]*m[10]-m[4]*m[2]*m[11]+m[4]*m[3]*m[10]+m[8]*m[2]*m[7]-m[8]*m[3]*m[6];
+  inv[11] = -m[0]*m[5]*m[11]+m[0]*m[7]*m[9]+m[4]*m[1]*m[11]-m[4]*m[3]*m[9]-m[8]*m[1]*m[7]+m[8]*m[3]*m[5];
+  inv[15] = m[0]*m[5]*m[10]-m[0]*m[6]*m[9]-m[4]*m[1]*m[10]+m[4]*m[2]*m[9]+m[8]*m[1]*m[6]-m[8]*m[2]*m[5];
+  const det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
+  return inv.map((v) => v / det);
+}
+function perspective(fovY, aspect, near, far) {
+  // Maps view-space depth to [0, 1]; only used to unproject rays.
+  const ys = 1 / Math.tan(fovY / 2), xs = ys / aspect, zs = far / (near - far);
+  return [xs, 0, 0, 0, 0, ys, 0, 0, 0, 0, zs, -1, 0, 0, zs * near, 0];
+}
+
+// ------------------------------------------------------------------ GL setup
+const canvas = $("gl");
+const gl = canvas.getContext("webgl2", { antialias: false, depth: false, stencil: false, alpha: false, powerPreference: "high-performance" });
+let prog, U = {}, volTex, occTex;
+let dims = [1, 1, 1], spacing = [1, 1, 1], half = [1, 1, 1];
+
+function setStatus(msg, frac) {
+  $("status").hidden = !msg;
+  $("msg").textContent = msg || "";
+  $("bar").hidden = frac == null;
+  if (frac != null) $("bar").firstElementChild.style.width = (100 * frac).toFixed(1) + "%";
+}
+
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+function initGL() {
+  prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  gl.useProgram(prog);
+  for (const n of ["uVol", "uOcc", "uInvMVP", "uBoxHalf", "uFwd", "uTf", "uMisc", "uDims", "uSlice", "uBg"]) U[n] = gl.getUniformLocation(prog, n);
+  gl.uniform1i(U.uVol, 0);
+  gl.uniform1i(U.uOcc, 1);
+  gl.bindVertexArray(gl.createVertexArray());
+}
+
+function make3D(unit, w, h, d, data, filter) {
+  const t = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0 + unit);
+  gl.bindTexture(gl.TEXTURE_3D, t);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texImage3D(gl.TEXTURE_3D, 0, gl.R8, w, h, d, 0, gl.RED, gl.UNSIGNED_BYTE, data);
+  for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_3D, p, filter);
+  for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T, gl.TEXTURE_WRAP_R]) gl.texParameteri(gl.TEXTURE_3D, p, gl.CLAMP_TO_EDGE);
+  return t;
+}
+
+// Max of each 8^3 brick plus a one-voxel border (the trilinear footprint).
+function brickMax(vox, [nx, ny, nz]) {
+  const bx = Math.ceil(nx / BRICK), by = Math.ceil(ny / BRICK), bz = Math.ceil(nz / BRICK);
+  // Separable max: along x into bricks, then y, then z, each with a 1-voxel border.
+  const rx = new Uint8Array(bx * ny * nz);
+  for (let z = 0; z < nz; z++) for (let y = 0; y < ny; y++) {
+    const row = (z * ny + y) * nx, o = (z * ny + y) * bx;
+    for (let b = 0; b < bx; b++) {
+      let m = 0;
+      const x1 = Math.min((b + 1) * BRICK + 1, nx);
+      for (let x = Math.max(b * BRICK - 1, 0); x < x1; x++) if (vox[row + x] > m) m = vox[row + x];
+      rx[o + b] = m;
+    }
+  }
+  const ry = new Uint8Array(bx * by * nz);
+  for (let z = 0; z < nz; z++) for (let b = 0; b < by; b++) for (let x = 0; x < bx; x++) {
+    let m = 0;
+    const y1 = Math.min((b + 1) * BRICK + 1, ny);
+    for (let y = Math.max(b * BRICK - 1, 0); y < y1; y++) { const v = rx[(z * ny + y) * bx + x]; if (v > m) m = v; }
+    ry[(z * by + b) * bx + x] = m;
+  }
+  const rz = new Uint8Array(bx * by * bz);
+  for (let b = 0; b < bz; b++) for (let y = 0; y < by; y++) for (let x = 0; x < bx; x++) {
+    let m = 0;
+    const z1 = Math.min((b + 1) * BRICK + 1, nz);
+    for (let z = Math.max(b * BRICK - 1, 0); z < z1; z++) { const v = ry[(z * by + y) * bx + x]; if (v > m) m = v; }
+    rz[(b * by + y) * bx + x] = m;
+  }
+  return { data: rz, dims: [bx, by, bz] };
+}
+
+// ------------------------------------------------------------------ loading
+async function fetchBytes(url, expected) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`${resp.status} fetching ${url}`);
+  const total = Number(resp.headers.get("content-length")) || expected || 0;
+  if (!resp.body || !total) return new Uint8Array(await resp.arrayBuffer());
+  const reader = resp.body.getReader();
+  const chunks = [];
+  let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value); got += value.length;
+    setStatus(`Downloading scan… ${(got / 1e6).toFixed(1)} / ${(total / 1e6).toFixed(1)} MB`, Math.min(got / total, 1));
+  }
+  const out = new Uint8Array(got);
+  let o = 0;
+  for (const c of chunks) { out.set(c, o); o += c.length; }
+  return out;
+}
+
+async function gunzip(bytes) {
+  if (!(bytes[0] === 0x1f && bytes[1] === 0x8b)) return bytes; // server already decoded it
+  if (typeof DecompressionStream === "undefined") throw new Error("This browser can't decompress the scan (needs Safari 16.4+ or a recent Chrome/Firefox).");
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function load() {
+  if (!gl) { setStatus("WebGL2 isn't available in this browser."); return; }
+  initGL();
+  const meta = await (await fetch("volume.json")).json();
+  dims = meta.dims; spacing = meta.spacing_mm; win = meta.window;
+  const t0 = performance.now();
+  const gz = await fetchBytes("volume.raw.gz", meta.bytes);
+  const t1 = performance.now();
+  setStatus("Preparing…", 1);
+  await new Promise((r) => setTimeout(r, 30)); // let the status text paint
+  const vox = await gunzip(gz);
+  if (vox.length !== dims[0] * dims[1] * dims[2]) throw new Error(`unexpected volume size ${vox.length}`);
+  const occ = brickMax(vox, dims);
+  volTex = make3D(0, dims[0], dims[1], dims[2], vox, gl.LINEAR);
+  occTex = make3D(1, occ.dims[0], occ.dims[1], occ.dims[2], occ.data, gl.NEAREST);
+  const t2 = performance.now();
+  const ext = [dims[0] * spacing[0], dims[1] * spacing[1], dims[2] * spacing[2]];
+  half = [ext[0] / 2, ext[2] / 2, ext[1] / 2]; // model axes (i, k, -j)
+  info = `${dims.join("×")} @ ${spacing[0]} mm · ${(gz.length / 1e6).toFixed(1)} MB\nload ${Math.round(t1 - t0)} ms · prep ${Math.round(t2 - t1)} ms`;
+  setStatus("");
+  resetCamera();
+  applyPreset();
+  poke();
+}
+
+// ------------------------------------------------------------------ camera + render
+const FOVY = 30 * Math.PI / 180;
+let rotation = [0, 0, 0, 1], distance = 300, pan = [0, 0], sliceZoom = 1, slicePan = [0, 0];
+let interactive = false, idleTimer = 0, pending = false, info = "";
+let moveScale = 1;          // adaptive resolution while moving
+let lastMoveDraw = 0;
+
+const radius = () => Math.hypot(...half);
+
+function resetCamera() {
+  rotation = [0, 0, 0, 1]; // anterior view, superior up
+  const aspect = canvas.clientWidth / Math.max(canvas.clientHeight, 1) || 1;
+  const ty = Math.tan(FOVY / 2), tx = ty * aspect;
+  // Leave room for the control panel on phones.
+  distance = Math.max(half[0] / tx, half[1] / ty) * 0.95 + half[2];
+  pan = [0, panelOffsetMM()];
+  sliceZoom = 1; slicePan = [0, 0];
+}
+function panelOffsetMM() {
+  const ph = $("panel").getBoundingClientRect().height, h = canvas.clientHeight || 1;
+  if (window.innerWidth >= 700) return 0;
+  const mmPerPx = 2 * distance * Math.tan(FOVY / 2) / h;
+  return (ph / 2) * mmPerPx * 0.8;
+}
+
+function poke() {
+  interactive = true;
+  request();
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { interactive = false; request(); }, 200);
+}
+function request() { if (!pending) { pending = true; requestAnimationFrame(frame); } }
+
+function frame(now) {
+  pending = false;
+  if (!volTex) return;
+  // Adapt the moving resolution to keep interaction responsive.
+  if (interactive && lastMoveDraw) {
+    const dt = now - lastMoveDraw;
+    if (dt > 45) moveScale = Math.max(0.35, moveScale * 0.85);
+    else if (dt < 22) moveScale = Math.min(1, moveScale * 1.05);
+  }
+  lastMoveDraw = interactive ? now : 0;
+  const dpr = window.devicePixelRatio || 1;
+  const scale = interactive ? Math.min(dpr, 1) * moveScale : (state.hiDpi ? dpr : Math.min(2, dpr));
+  const w = Math.max(1, Math.floor(canvas.clientWidth * scale)), h = Math.max(1, Math.floor(canvas.clientHeight * scale));
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  gl.viewport(0, 0, w, h);
+  setUniforms(w, h);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  $("stats").textContent = `${info}\n${w}×${h} ${interactive ? "moving" : "still"}`;
+}
+
+function setUniforms(w, h) {
+  const aspect = w / h, voxel = Math.min(...spacing), R = radius();
+  const step = voxel * (interactive ? 1.0 : 0.5);
+  const proj = perspective(FOVY, aspect, 1, distance + 2 * R);
+  const view = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, pan[0], pan[1], -distance, 1];
+  const mvp = mat4mul(proj, mat4mul(view, quat.toMat4(rotation)));
+  gl.uniformMatrix4fv(U.uInvMVP, false, mat4inv(mvp));
+  const fwd = quat.rotate(quat.conj(rotation), [0, 0, -1]);
+  gl.uniform4f(U.uBoxHalf, half[0], half[1], half[2], step);
+  gl.uniform4f(U.uFwd, fwd[0], fwd[1], fwd[2], -R * 1.01 + state.cut * 2 * R);
+  const lit = state.mode === MODE.MIP || state.mode === MODE.SLICE ? 0 : state.shade;
+  gl.uniform4f(U.uTf, toStored(state.lo), toStored(Math.max(state.hi, state.lo + 1)), 1, lit);
+  gl.uniform4f(U.uMisc, state.mode, state.axis, state.slice, voxel);
+  gl.uniform4f(U.uDims, dims[0], dims[1], dims[2], BRICK);
+  const ext = [dims[0] * spacing[0], dims[1] * spacing[1], dims[2] * spacing[2]];
+  const plane = state.axis === 0 ? [ext[0], ext[1]] : state.axis === 1 ? [ext[0], ext[2]] : [ext[1], ext[2]];
+  const fit = Math.min(w / plane[0], h / plane[1]);
+  gl.uniform4f(U.uSlice, (w / 2) / (fit * plane[0]) / sliceZoom, (h / 2) / (fit * plane[1]) / sliceZoom, slicePan[0], slicePan[1]);
+  gl.uniform3f(U.uBg, BG[0], BG[1], BG[2]);
+}
+
+// ------------------------------------------------------------------ gestures
+const pointers = new Map();
+let gesture = null, lastTap = 0;
+
+function rotateBy(dx, dy) {
+  const k = 0.008;
+  const qy = quat.axisAngle([0, 1, 0], dx * k), qx = quat.axisAngle([1, 0, 0], dy * k);
+  rotation = quat.norm(quat.mul(quat.mul(qy, qx), rotation));
+}
+function panBy(dx, dy) {
+  const H = canvas.clientHeight || 1;
+  if (state.mode === MODE.SLICE) {
+    const s = 1 / (H * sliceZoom);
+    slicePan[0] -= dx * s; slicePan[1] += dy * s;
+  } else {
+    const mmPerPx = 2 * distance * Math.tan(FOVY / 2) / H;
+    pan[0] += dx * mmPerPx; pan[1] -= dy * mmPerPx;
+  }
+}
+function zoomBy(s) {
+  if (!(s > 0)) return;
+  if (state.mode === MODE.SLICE) sliceZoom = Math.min(Math.max(sliceZoom * s, 0.5), 12);
+  else distance = Math.min(Math.max(distance / s, radius() * 0.3), radius() * 8);
+}
+function twoFinger() {
+  const [a, b] = [...pointers.values()];
+  return { cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, d: Math.hypot(b.x - a.x, b.y - a.y), ang: Math.atan2(b.y - a.y, b.x - a.x) };
+}
+
+canvas.addEventListener("pointerdown", (e) => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, button: e.button, shift: e.shiftKey });
+  gesture = pointers.size === 2 ? twoFinger() : null;
+});
+canvas.addEventListener("pointermove", (e) => {
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  p.x = e.clientX; p.y = e.clientY;
+  if (pointers.size === 1) {
+    if (p.button === 2 || p.shift || p.button === 1) panBy(dx, dy);
+    else if (state.mode === MODE.SLICE) { setSlice(state.slice - dy / (canvas.clientHeight || 1) * 0.5); return; }
+    else rotateBy(dx, dy);
+    poke();
+  } else if (pointers.size === 2 && gesture) {
+    const g = twoFinger();
+    panBy(g.cx - gesture.cx, g.cy - gesture.cy);
+    if (gesture.d > 0) zoomBy(g.d / gesture.d);
+    if (state.mode !== MODE.SLICE) {
+      let da = g.ang - gesture.ang;
+      if (da > Math.PI) da -= 2 * Math.PI; else if (da < -Math.PI) da += 2 * Math.PI;
+      rotation = quat.norm(quat.mul(quat.axisAngle([0, 0, 1], -da), rotation));
+    }
+    gesture = g;
+    poke();
+  }
+});
+function endPointer(e) {
+  const p = pointers.get(e.pointerId);
+  pointers.delete(e.pointerId);
+  gesture = pointers.size === 2 ? twoFinger() : null;
+  if (p && e.type === "pointerup" && pointers.size === 0 && Math.hypot(p.x - p.x0, p.y - p.y0) < 8) {
+    const now = performance.now();
+    if (now - lastTap < 320) { resetCamera(); poke(); lastTap = 0; } else lastTap = now;
+  }
+}
+canvas.addEventListener("pointerup", endPointer);
+canvas.addEventListener("pointercancel", endPointer);
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  if (state.mode === MODE.SLICE && !e.ctrlKey) setSlice(state.slice - e.deltaY * 0.0005);
+  else { zoomBy(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015))); poke(); }
+}, { passive: false });
+// Stop Safari's own pinch-zoom of the page.
+for (const ev of ["gesturestart", "gesturechange", "gestureend"]) document.addEventListener(ev, (e) => e.preventDefault());
+window.addEventListener("resize", () => poke());
+
+// ------------------------------------------------------------------ controls
+function syncUI() {
+  for (const b of document.querySelectorAll("#modes button")) b.setAttribute("aria-pressed", String(+b.dataset.mode === state.mode));
+  for (const b of document.querySelectorAll("#axes button")) b.setAttribute("aria-pressed", String(+b.dataset.axis === state.axis));
+  const slices = state.mode === MODE.SLICE;
+  $("axes").hidden = !slices; $("sliceRow").hidden = !slices; $("cutRow").hidden = slices;
+  $("shadeRow").hidden = state.mode >= MODE.MIP;
+  $("lo").value = state.lo; $("hi").value = state.hi; $("shade").value = state.shade;
+  $("loV").textContent = Math.round(state.lo); $("hiV").textContent = Math.round(state.hi);
+  $("cut").value = state.cut; $("slice").value = state.slice;
+  $("hint").textContent = slices
+    ? "Drag up/down to scroll slices · pinch to zoom · two fingers to pan · double-tap to reset"
+    : "Drag to rotate · pinch to zoom · two fingers to pan/twist · double-tap to reset";
+}
+function applyPreset() {
+  const p = PRESETS[state.mode];
+  state.lo = p.lo; state.hi = p.hi; state.shade = p.shade || state.shade;
+  syncUI();
+}
+function setSlice(v) { state.slice = Math.min(Math.max(v, 0), 1); $("slice").value = state.slice; poke(); }
+
+document.querySelectorAll("#modes button").forEach((b) => b.onclick = () => {
+  const m = +b.dataset.mode;
+  if (m === state.mode) return;
+  state.mode = m; applyPreset(); poke();
+});
+document.querySelectorAll("#axes button").forEach((b) => b.onclick = () => {
+  state.axis = +b.dataset.axis; sliceZoom = 1; slicePan = [0, 0]; syncUI(); poke();
+});
+$("cut").oninput = () => { state.cut = +$("cut").value; poke(); };
+$("slice").oninput = () => setSlice(+$("slice").value);
+$("lo").oninput = () => { state.lo = Math.min(+$("lo").value, state.hi - 10); $("loV").textContent = Math.round(state.lo); poke(); };
+$("hi").oninput = () => { state.hi = Math.max(+$("hi").value, state.lo + 10); $("hiV").textContent = Math.round(state.hi); poke(); };
+$("shade").oninput = () => { state.shade = +$("shade").value; poke(); };
+$("moreBtn").onclick = () => {
+  const open = $("panel").classList.toggle("open");
+  $("moreBtn").setAttribute("aria-pressed", String(open));
+};
+$("hiDpiBtn").onclick = () => {
+  state.hiDpi = !state.hiDpi;
+  $("hiDpiBtn").setAttribute("aria-pressed", String(state.hiDpi));
+  poke();
+};
+$("resetBtn").onclick = () => { resetCamera(); poke(); };
+
+canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); volTex = null; setStatus("The graphics context was lost.\nReload the page to continue."); });
+
+syncUI();
+load().catch((e) => { console.error(e); setStatus("Couldn't load the scan:\n" + e.message); });
+</script>
+</body>
+</html>
