@@ -425,7 +425,9 @@ async function load() {
 
 // ------------------------------------------------------------------ camera + render
 const FOVY = 30 * Math.PI / 180;
-let rotation = [0, 0, 0, 1], distance = 300, pan = [0, 0], sliceZoom = 1, slicePan = [0, 0];
+// Turntable camera: azimuth spins about the head's vertical axis, elevation tilts
+// toward the top/bottom of the head (clamped), never any roll. Always about the volume centre.
+let az = 0, el = 0, distance = 300, pan = [0, 0], sliceZoom = 1, slicePan = [0, 0];
 let interactive = false, idleTimer = 0, pending = false, info = "";
 let moveScale = 1;          // adaptive resolution while moving
 let lastMoveDraw = 0;
@@ -433,7 +435,7 @@ let lastMoveDraw = 0;
 const radius = () => Math.hypot(...half);
 
 function resetCamera() {
-  rotation = [0, 0, 0, 1]; // anterior view, superior up
+  az = 0; el = 0; // anterior view, superior up
   const aspect = canvas.clientWidth / Math.max(canvas.clientHeight, 1) || 1;
   const ty = Math.tan(FOVY / 2), tx = ty * aspect;
   // Leave room for the control panel on phones.
@@ -481,9 +483,9 @@ function setUniforms(w, h) {
   const step = voxel * (interactive ? 1.0 : 0.5);
   const proj = perspective(FOVY, aspect, 1, distance + 2 * R);
   const view = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, pan[0], pan[1], -distance, 1];
-  const mvp = mat4mul(proj, mat4mul(view, quat.toMat4(rotation)));
+  const mvp = mat4mul(proj, mat4mul(view, quat.toMat4(orientation())));
   gl.uniformMatrix4fv(U.uInvMVP, false, mat4inv(mvp));
-  const fwd = quat.rotate(quat.conj(rotation), [0, 0, -1]);
+  const fwd = quat.rotate(quat.conj(orientation()), [0, 0, -1]);
   gl.uniform4f(U.uBoxHalf, half[0], half[1], half[2], step);
   gl.uniform4f(U.uFwd, fwd[0], fwd[1], fwd[2], -R * 1.01 + state.cut * 2 * R);
   const lit = state.mode === MODE.MIP || state.mode === MODE.SLICE ? 0 : state.shade;
@@ -503,8 +505,12 @@ let gesture = null, lastTap = 0;
 
 function rotateBy(dx, dy) {
   const k = 0.008;
-  const qy = quat.axisAngle([0, 1, 0], dx * k), qx = quat.axisAngle([1, 0, 0], dy * k);
-  rotation = quat.norm(quat.mul(quat.mul(qy, qx), rotation));
+  az = (az + dx * k) % (2 * Math.PI);
+  el = Math.min(Math.max(el + dy * k, -MAX_EL), MAX_EL);
+}
+const MAX_EL = 85 * Math.PI / 180;
+function orientation() {
+  return quat.mul(quat.axisAngle([1, 0, 0], el), quat.axisAngle([0, 1, 0], az));
 }
 function panBy(dx, dy) {
   const H = canvas.clientHeight || 1;
@@ -545,11 +551,6 @@ canvas.addEventListener("pointermove", (e) => {
     const g = twoFinger();
     panBy(g.cx - gesture.cx, g.cy - gesture.cy);
     if (gesture.d > 0) zoomBy(g.d / gesture.d);
-    if (state.mode !== MODE.SLICE) {
-      let da = g.ang - gesture.ang;
-      if (da > Math.PI) da -= 2 * Math.PI; else if (da < -Math.PI) da += 2 * Math.PI;
-      rotation = quat.norm(quat.mul(quat.axisAngle([0, 0, 1], -da), rotation));
-    }
     gesture = g;
     poke();
   }
@@ -587,7 +588,7 @@ function syncUI() {
   $("cut").value = state.cut; $("slice").value = state.slice;
   $("hint").textContent = slices
     ? "Drag up/down to scroll slices · pinch to zoom · two fingers to pan · double-tap to reset"
-    : "Drag to rotate · pinch to zoom · two fingers to pan/twist · double-tap to reset";
+    : "Drag to rotate · pinch to zoom · two fingers to pan · double-tap to reset";
 }
 function applyPreset() {
   const p = PRESETS[state.mode];
