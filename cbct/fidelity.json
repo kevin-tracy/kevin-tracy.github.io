@@ -3,9 +3,17 @@
  "desktop": "high",
  "levels": [
   {
+   "id": "low",
+   "label": "Low",
+   "title": "0.6 mm",
+   "dir": "low",
+   "bytes": 2062934,
+   "gpu_bytes": 13215616
+  },
+  {
    "id": "medium",
    "label": "Medium",
-   "title": "0.6 mm + 0.3 mm teeth (~4 MB)",
+   "title": "0.6 mm, teeth 0.3 mm",
    "dir": "medium",
    "bytes": 4035641,
    "gpu_bytes": 19567992
@@ -13,7 +21,7 @@
   {
    "id": "high",
    "label": "High",
-   "title": "0.3 mm everywhere (~14 MB)",
+   "title": "0.3 mm",
    "dir": "high",
    "bytes": 13583888,
    "gpu_bytes": 105724928
