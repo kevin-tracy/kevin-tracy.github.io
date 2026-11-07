@@ -128,11 +128,20 @@ uniform vec4 uMisc;       // mode, slice axis, slice pos, reference step (mm)
 uniform vec4 uDims;       // voxel dims, brick size
 uniform vec4 uSlice;      // ndc->plane scale xy, pan zw
 uniform vec3 uBg;
+uniform sampler3D uPatch;  // optional finer sub-volume (e.g. the teeth), linear
+uniform vec4 uPMin;        // xyz patch min in base tex coords, w = has patch
+uniform vec3 uPMax;        // patch max in base tex coords
+uniform vec3 uPVox;        // patch voxel size in base tex coords
 
 // Model space is (i, k, -j): x = patient left/right, y = superior, z = anterior.
 vec3 toTex(vec3 p, vec3 h) { vec3 n = p / (2.0 * h) + 0.5; return vec3(n.x, 1.0 - n.z, n.y); }
 vec3 toTexDir(vec3 d, vec3 h) { vec3 n = d / (2.0 * h); return vec3(n.x, -n.z, n.y); }
 float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+bool inPatch(vec3 tc) { return uPMin.w > 0.5 && all(greaterThanEqual(tc, uPMin.xyz)) && all(lessThanEqual(tc, uPMax)); }
+float vol(vec3 tc) {
+  if (inPatch(tc)) return texture(uPatch, (tc - uPMin.xyz) / (uPMax - uPMin.xyz)).r;
+  return texture(uVol, tc).r;
+}
 vec3 boneColor(float x) { return mix(vec3(0.78, 0.60, 0.47), vec3(1.0, 0.97, 0.92), clamp(x, 0.0, 1.0)); }
 
 void main() {
@@ -149,7 +158,7 @@ void main() {
     if (axis == 0)      tc = vec3(q.x, 1.0 - q.y, s);
     else if (axis == 1) tc = vec3(q.x, s, q.y);
     else                tc = vec3(s, q.x, q.y);
-    float g = clamp((texture(uVol, tc).r - lo) * invRange, 0.0, 1.0);
+    float g = clamp((vol(tc) - lo) * invRange, 0.0, 1.0);
     outColor = vec4(g, g, g, 1.0);
     return;
   }
@@ -195,7 +204,7 @@ void main() {
       t += max(ceil(texit / stepMM), 1.0) * stepMM;
       continue;
     }
-    float v = texture(uVol, tc).r;
+    float v = vol(tc);
     if (mode == 2) {
       mx = max(mx, v);
       if (mx >= hi) break;
@@ -206,10 +215,11 @@ void main() {
         a = 1.0 - pow(1.0 - min(a, 0.995), alphaExp);
         vec3 c = boneColor(x);
         if (uTf.w > 0.0) {
+          vec3 o = inPatch(tc) ? uPVox : voxTex;
           vec3 g = vec3(
-            texture(uVol, tc + vec3(voxTex.x, 0, 0)).r - texture(uVol, tc - vec3(voxTex.x, 0, 0)).r,
-            texture(uVol, tc + vec3(0, voxTex.y, 0)).r - texture(uVol, tc - vec3(0, voxTex.y, 0)).r,
-            texture(uVol, tc + vec3(0, 0, voxTex.z)).r - texture(uVol, tc - vec3(0, 0, voxTex.z)).r);
+            vol(tc + vec3(o.x, 0, 0)) - vol(tc - vec3(o.x, 0, 0)),
+            vol(tc + vec3(0, o.y, 0)) - vol(tc - vec3(0, o.y, 0)),
+            vol(tc + vec3(0, 0, o.z)) - vol(tc - vec3(0, 0, o.z)));
           vec3 gm = vec3(g.x, g.z, -g.y);
           float gl = length(gm);
           if (gl > 1e-4) {
@@ -298,7 +308,9 @@ function perspective(fovY, aspect, near, far) {
 // ------------------------------------------------------------------ GL setup
 const canvas = $("gl");
 const gl = canvas.getContext("webgl2", { antialias: false, depth: false, stencil: false, alpha: false, powerPreference: "high-performance" });
-let prog, U = {}, volTex, occTex;
+let prog, U = {}, volTex, occTex, patchTex, patch = null;
+// Opacity is defined per ALPHA_MM of ray so every fidelity level looks equally dense.
+const ALPHA_MM = 0.6;
 let dims = [1, 1, 1], spacing = [1, 1, 1], half = [1, 1, 1];
 
 function setStatus(msg, frac) {
@@ -322,9 +334,10 @@ function initGL() {
   gl.linkProgram(prog);
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
   gl.useProgram(prog);
-  for (const n of ["uVol", "uOcc", "uInvMVP", "uBoxHalf", "uFwd", "uTf", "uMisc", "uDims", "uSlice", "uBg"]) U[n] = gl.getUniformLocation(prog, n);
+  for (const n of ["uVol", "uOcc", "uInvMVP", "uBoxHalf", "uFwd", "uTf", "uMisc", "uDims", "uSlice", "uBg", "uPatch", "uPMin", "uPMax", "uPVox"]) U[n] = gl.getUniformLocation(prog, n);
   gl.uniform1i(U.uVol, 0);
   gl.uniform1i(U.uOcc, 1);
+  gl.uniform1i(U.uPatch, 2);
   gl.bindVertexArray(gl.createVertexArray());
 }
 
@@ -398,30 +411,97 @@ async function gunzip(bytes) {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
+// Quality levels: if fidelity.json sits next to the page it lists level folders, each with
+// its own volume.json (+ volume.raw.gz, optional teeth patch), and which level phones and
+// desktops get. There is no quality switch in the UI: the device decides (phones and tablets
+// have far less memory for the tab). ?fidelity=<id> overrides it for testing. Without
+// fidelity.json the page loads volume.json from its own folder (the original single volume).
+let fidelity = null, level = null, loading = false;
+const isMobile = () => /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+  (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)); // iPadOS reports as a Mac
+
 async function load() {
   if (!gl) { setStatus("WebGL2 isn't available in this browser."); return; }
   initGL();
-  const meta = await (await fetch("volume.json")).json();
-  dims = meta.dims; spacing = meta.spacing_mm; win = meta.window;
+  try { const r = await fetch("fidelity.json"); if (r.ok) fidelity = await r.json(); } catch (_) { fidelity = null; }
+  if (fidelity) {
+    level = new URLSearchParams(location.search).get("fidelity") ||
+      (isMobile() ? fidelity.mobile : fidelity.desktop) || fidelity.levels[0].id;
+  }
+  await loadLevel(level, true);
+}
+
+async function loadLevel(id, first) {
+  loading = true;
+  const lv = fidelity ? (fidelity.levels.find((l) => l.id === id) || fidelity.levels[0]) : null;
+  const dir = lv ? lv.dir.replace(/\/?$/, "/") : "";
+  if (lv) level = lv.id;
+  for (const t of [volTex, occTex, patchTex]) if (t) gl.deleteTexture(t);
+  volTex = occTex = patchTex = null; patch = null;
+
+  const meta = await (await fetch(dir + "volume.json")).json();
   const t0 = performance.now();
-  const gz = await fetchBytes("volume.raw.gz", meta.bytes);
+  const gz = await fetchBytes(dir + "volume.raw.gz", meta.bytes);
+  let pz = null;
+  if (meta.patch) pz = await fetchBytes(dir + meta.patch.file, meta.patch.bytes);
   const t1 = performance.now();
   setStatus("Preparing…", 1);
   await new Promise((r) => setTimeout(r, 30)); // let the status text paint
+  dims = meta.dims; spacing = meta.spacing_mm; win = meta.window;
   const vox = await gunzip(gz);
   if (vox.length !== dims[0] * dims[1] * dims[2]) throw new Error(`unexpected volume size ${vox.length}`);
   const occ = brickMax(vox, dims);
+  let pv = null;
+  if (pz) {
+    pv = await gunzip(pz);
+    const pd = meta.patch.dims;
+    if (pv.length !== pd[0] * pd[1] * pd[2]) throw new Error(`unexpected patch size ${pv.length}`);
+    patch = meta.patch;
+    mergePatchOcc(occ, pv, patch);
+    patchTex = make3D(2, pd[0], pd[1], pd[2], pv, gl.LINEAR);
+  } else {
+    patchTex = make3D(2, 1, 1, 1, new Uint8Array(1), gl.NEAREST);
+  }
   volTex = make3D(0, dims[0], dims[1], dims[2], vox, gl.LINEAR);
   occTex = make3D(1, occ.dims[0], occ.dims[1], occ.dims[2], occ.data, gl.NEAREST);
   const t2 = performance.now();
   const ext = [dims[0] * spacing[0], dims[1] * spacing[1], dims[2] * spacing[2]];
   half = [ext[0] / 2, ext[2] / 2, ext[1] / 2]; // model axes (i, k, -j)
-  info = `${dims.join("×")} @ ${spacing[0]} mm · ${(gz.length / 1e6).toFixed(1)} MB\nload ${Math.round(t1 - t0)} ms · prep ${Math.round(t2 - t1)} ms`;
+  const dl = gz.length + (pz ? pz.length : 0), gpu = vox.length + (pv ? pv.length : 0);
+  info = `${lv ? lv.label + " · " : ""}${(dl / 1e6).toFixed(1)} MB · ${(gpu / 1e6).toFixed(0)} MB GPU` +
+    `\n${spacing[0]} mm${patch ? ` + ${patch.spacing_mm[0]} mm teeth` : ""} · load ${Math.round(t1 - t0)} · prep ${Math.round(t2 - t1)} ms`;
   setStatus("");
-  resetCamera();
-  applyPreset();
+  if (first) { resetCamera(); applyPreset(); }
+  loading = false;
   poke();
 }
+
+// Raise brick maxima wherever the patch has denser voxels than the coarse base, so
+// empty-space skipping never skips fine detail. Dilated by one brick to cover the
+// trilinear footprint at brick edges.
+function mergePatchOcc(occ, pv, p) {
+  const [bx, by, bz] = occ.dims, [px, py, pyz] = [p.dims[0], p.dims[1], p.dims[2]];
+  const idx = (n, ax, nb) => Int32Array.from({ length: n }, (_, i) =>
+    Math.min(nb - 1, Math.max(0, Math.floor((p.offset_mm[ax] + (i + 0.5) * p.spacing_mm[ax]) / spacing[ax] / BRICK))));
+  const ix = idx(px, 0, bx), iy = idx(py, 1, by), iz = idx(pyz, 2, bz);
+  const tmp = new Uint8Array(bx * by * bz);
+  let o = 0;
+  for (let z = 0; z < pyz; z++) for (let y = 0; y < py; y++) {
+    const rowB = (iz[z] * by + iy[y]) * bx;
+    for (let x = 0; x < px; x++, o++) { const v = pv[o], k = rowB + ix[x]; if (v > tmp[k]) tmp[k] = v; }
+  }
+  for (let z = 0; z < bz; z++) for (let y = 0; y < by; y++) for (let x = 0; x < bx; x++) {
+    let m = 0;
+    for (let dz = -1; dz <= 1; dz++) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const X = x + dx, Y = y + dy, Z = z + dz;
+      if (X < 0 || Y < 0 || Z < 0 || X >= bx || Y >= by || Z >= bz) continue;
+      const v = tmp[(Z * by + Y) * bx + X]; if (v > m) m = v;
+    }
+    const k = (z * by + y) * bx + x;
+    if (m > occ.data[k]) occ.data[k] = m;
+  }
+}
+function fail(e) { loading = false; console.error(e); setStatus("Couldn't load the scan:\n" + e.message); }
 
 // ------------------------------------------------------------------ camera + render
 const FOVY = 30 * Math.PI / 180;
@@ -479,7 +559,7 @@ function frame(now) {
 }
 
 function setUniforms(w, h) {
-  const aspect = w / h, voxel = Math.min(...spacing), R = radius();
+  const aspect = w / h, voxel = Math.min(...spacing, ...(patch ? patch.spacing_mm : [])), R = radius();
   const step = voxel * (interactive ? 1.0 : 0.5);
   const proj = perspective(FOVY, aspect, 1, distance + 2 * R);
   const view = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, pan[0], pan[1], -distance, 1];
@@ -490,7 +570,15 @@ function setUniforms(w, h) {
   gl.uniform4f(U.uFwd, fwd[0], fwd[1], fwd[2], -R * 1.01 + state.cut * 2 * R);
   const lit = state.mode === MODE.MIP || state.mode === MODE.SLICE ? 0 : state.shade;
   gl.uniform4f(U.uTf, toStored(state.lo), toStored(Math.max(state.hi, state.lo + 1)), 1, lit);
-  gl.uniform4f(U.uMisc, state.mode, state.axis, state.slice, voxel);
+  gl.uniform4f(U.uMisc, state.mode, state.axis, state.slice, ALPHA_MM);
+  const ext3 = [dims[0] * spacing[0], dims[1] * spacing[1], dims[2] * spacing[2]];
+  if (patch) {
+    const pm = [0, 1, 2].map((a) => patch.offset_mm[a] / ext3[a]);
+    const px = [0, 1, 2].map((a) => (patch.offset_mm[a] + patch.dims[a] * patch.spacing_mm[a]) / ext3[a]);
+    gl.uniform4f(U.uPMin, pm[0], pm[1], pm[2], 1);
+    gl.uniform3f(U.uPMax, px[0], px[1], px[2]);
+    gl.uniform3f(U.uPVox, ...[0, 1, 2].map((a) => patch.spacing_mm[a] / ext3[a]));
+  } else gl.uniform4f(U.uPMin, 0, 0, 0, 0);
   gl.uniform4f(U.uDims, dims[0], dims[1], dims[2], BRICK);
   const ext = [dims[0] * spacing[0], dims[1] * spacing[1], dims[2] * spacing[2]];
   const plane = state.axis === 0 ? [ext[0], ext[1]] : state.axis === 1 ? [ext[0], ext[2]] : [ext[1], ext[2]];
@@ -624,7 +712,7 @@ $("resetBtn").onclick = () => { resetCamera(); poke(); };
 canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); volTex = null; setStatus("The graphics context was lost.\nReload the page to continue."); });
 
 syncUI();
-load().catch((e) => { console.error(e); setStatus("Couldn't load the scan:\n" + e.message); });
+load().catch(fail);
 </script>
 </body>
 </html>

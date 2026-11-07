@@ -1,0 +1,22 @@
+{
+ "mobile": "medium",
+ "desktop": "high",
+ "levels": [
+  {
+   "id": "medium",
+   "label": "Medium",
+   "title": "0.6 mm + 0.3 mm teeth (~4 MB)",
+   "dir": "medium",
+   "bytes": 4035641,
+   "gpu_bytes": 19567992
+  },
+  {
+   "id": "high",
+   "label": "High",
+   "title": "0.3 mm everywhere (~14 MB)",
+   "dir": "high",
+   "bytes": 13583888,
+   "gpu_bytes": 105724928
+  }
+ ]
+}
