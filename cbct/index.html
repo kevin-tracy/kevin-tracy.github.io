@@ -98,6 +98,8 @@ const PRESETS = [
   { lo: -500, hi: 2500, shade: 0 },    // slices
 ];
 const BG = [0.043, 0.051, 0.063];
+// Source commit + commit time (Pacific), stamped in by web/publish.sh. "dev" = working copy.
+const BUILD = "0daba40 · 2026-11-07 12:42 PST".startsWith("__") ? "dev build" : "0daba40 · 2026-11-07 12:42 PST";
 const BRICK = 8;
 
 const state = { mode: 0, axis: 0, slice: 0.5, cut: 0, lo: 350, hi: 2200, shade: 0.6, hiDpi: false };
@@ -555,7 +557,7 @@ function frame(now) {
   gl.viewport(0, 0, w, h);
   setUniforms(w, h);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
-  $("stats").textContent = `${info}\n${w}×${h} ${interactive ? "moving" : "still"}`;
+  $("stats").textContent = `${BUILD}\n${info}\n${w}×${h} ${interactive ? "moving" : "still"}`;
 }
 
 function setUniforms(w, h) {
