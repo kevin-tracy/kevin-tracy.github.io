@@ -52,10 +52,6 @@ input:focus{outline:none;border-color:var(--acc)}
 .set.done input{background:transparent;border-color:transparent}
 .chk{width:40px;height:36px;border-radius:8px;background:var(--line);font-size:18px;color:var(--mut)}
 .set.done .chk{background:var(--ok);color:#06210f}
-.modal{position:fixed;inset:0;background:#000a;display:grid;place-items:center;padding:16px;z-index:9}
-.sheet{background:var(--card);border-radius:var(--r);padding:20px;width:100%;max-width:340px;display:grid;gap:14px;justify-items:center;text-align:center}
-.sheet .t{font-weight:600}
-.sheet .s{font-size:13px;color:var(--mut);min-height:1em}
 .foot{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 30%)}
 .foot>div{max-width:528px;margin:0 auto}
 /* edit */
@@ -67,6 +63,18 @@ input:focus{outline:none;border-color:var(--acc)}
 .ed .f{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .ed label{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;display:block}
 .ed select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 4px;width:100%}
+.btn.link{background:none;color:var(--mut);font-weight:400;font-size:14px;margin-top:24px}
+.btn:disabled{opacity:.4}
+h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:500;margin:28px 0 10px}
+.btn+.btn,.card+.btn{margin-top:10px}
+p.s,.sub{color:var(--mut);font-size:14px}
+.sub{margin:-8px 0 8px}
+.signin{min-height:80vh;display:grid;place-content:center;justify-items:center;gap:16px;text-align:center}
+.signin h1{font-size:28px}
+.signin .s{color:var(--mut);font-size:14px;min-height:1em;max-width:280px}
+.ed.rt{display:grid;gap:8px}
+.ed.rt input{text-align:left;padding:8px 10px}
+.ed .f2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 </style>
 </head>
 <body>
@@ -79,123 +87,151 @@ input:focus{outline:none;border-color:var(--acc)}
    API confirms the write; retries are safe because rows carry a workout id. */
 const API = location.hostname==="localhost" ? "http://127.0.0.1:8787" : "https://lift-api.kevt-laser.workers.dev";
 const CLIENT_ID = "634279737389-s25tjhmhkc3ncs3uddvd309gat185016.apps.googleusercontent.com";
-const K = {routines:"lift.routines", log:"lift.log", active:"lift.active", outbox:"lift.outbox", token:"lift.token", dirty:"lift.dirty"};
+const K = {routines:"lift.routines", log:"lift.log", active:"lift.active", outbox:"lift.outbox", token:"lift.token", dirty:"lift.dirty", me:"lift.me", users:"lift.users"};
+const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 const ls = {
   get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch{ return d; } },
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} },
   del(k){ try{ localStorage.removeItem(k); }catch{} }
 };
-// drop anything left over from the prototype (fake history, test workouts)
-if(ls.get("lift.v")!==2){ try{ Object.keys(localStorage).filter(k=>k.startsWith("lift.")).forEach(k=>localStorage.removeItem(k)); }catch{} ls.set("lift.v",2); }
+const clearAll = () => { try{ Object.keys(localStorage).filter(k=>k.startsWith("lift.")&&k!=="lift.v").forEach(k=>localStorage.removeItem(k)); }catch{} };
+// v3 = per-user data. Anything cached by a signed-out visitor belonged to the old public view.
+if(ls.get("lift.v")!==3){ if(!ls.get(K.token)) clearAll(); ls.set("lift.v",3); }
 
 async function api(path, method="GET", body){
   const h={}, tok=ls.get(K.token);
   if(tok) h.authorization="Bearer "+tok;
   if(body) h["content-type"]="application/json";
   const r=await fetch(API+path, {method, headers:h, body:body&&JSON.stringify(body)});
-  if(r.status===401){ ls.del(K.token); throw "auth"; }
+  if(r.status===401){ ls.del(K.token); render(); throw "auth"; }
   if(!r.ok) throw "http";
   return r.json();
 }
 
 /* ---------- sign in ----------
-   Google's script is loaded only when someone taps Start/Edit while signed out.
-   The API checks the Google token is the owner's and hands back a long-lived
-   device token, so sign-in happens once per device. */
+   Google's button proves who you are; the API checks the email is on the list
+   and hands back a long-lived device token, so sign-in happens once per device. */
 let gisP=null;
 const loadGis=()=>gisP||=new Promise((res,rej)=>{ const s=document.createElement("script");
   s.src="https://accounts.google.com/gsi/client"; s.onload=res; s.onerror=()=>{gisP=null; rej();}; document.head.append(s); });
-function unlock(){
-  if(ls.get(K.token)) return Promise.resolve(true);
-  return new Promise(async done=>{
-    const m=document.createElement("div"); m.className="modal";
-    m.innerHTML=`<div class="sheet"><div class="t">Sign in to make changes</div><div id="gbtn"></div><div class="s" id="gmsg"></div><button class="btn">Cancel</button></div>`;
-    document.body.append(m);
-    const msg=t=>m.querySelector("#gmsg").textContent=t, close=ok=>{ m.remove(); done(ok); };
-    m.querySelector("button").onclick=()=>close(false);
-    try{ await loadGis(); }catch{ return msg("Couldn't load Google sign-in."); }
-    google.accounts.id.initialize({client_id:CLIENT_ID, callback:async ({credential})=>{
-      msg("Checking…");
-      try{ const {token}=await api("/login","POST",{credential}); ls.set(K.token,token); close(true); sync(); }
-      catch{ msg("This account can't edit this tracker."); }
-    }});
-    google.accounts.id.renderButton(m.querySelector("#gbtn"), {theme:"filled_black", size:"large", shape:"pill"});
-  });
+async function mountSignin(){
+  const msg=t=>{ const el=$("#gmsg"); if(el) el.textContent=t; };
+  try{ await loadGis(); }catch{ return msg("Couldn't load Google sign-in."); }
+  const el=$("#gbtn"); if(!el) return;
+  google.accounts.id.initialize({client_id:CLIENT_ID, callback:async ({credential})=>{
+    msg("Checking…");
+    try{ const {token}=await api("/login","POST",{credential}); clearAll(); ls.set(K.token,token); location.hash="#/"; render(); sync(); }
+    catch{ msg("This Google account isn't on the list. Ask Kevin to add you."); }
+  }});
+  google.accounts.id.renderButton(el, {theme:"filled_black", size:"large", shape:"pill"});
+}
+function signOut(){
+  const n=ls.get(K.outbox,[]).length;
+  if(n && !confirm(`${n} sets haven't synced yet and will be lost. Sign out anyway?`)) return;
+  api("/logout","POST").catch(()=>{}).finally(()=>{ clearAll(); routines=[]; log=[]; location.hash="#/"; render(); });
 }
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
 const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const lo = r => parseInt(String(r).split("-")[0]) || 0;
-const esc = s => String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const num = v => v===""||v==null ? null : Number(v);
 const fmtSet = x => x.skip ? "–" : x.t!=null ? `${x.t}s` : `${x.w ? x.w : "BW"}×${x.reps}`;
 const target = e => { const n=e.n??e.sets; return e.kind==="time" ? `${n} sets` : `${n} × ${e.reps}`; };
 const ago = d => { const n=Math.round((new Date(iso(new Date()))-new Date(d))/864e5); return n===0?"today":n===1?"yesterday":`${n} days ago`; };
+const newId = () => "r"+Math.random().toString(36).slice(2,9);
 
 let routines = ls.get(K.routines, []);
 let log = ls.get(K.log, []);
+const others = {};   // uid -> {routines, sets}, fetched on demand, read-only
 
 // most recent non-skipped sets of an exercise (by name, across routines)
-function previous(name){
+function previous(name, lg=log){
   let best=null;
-  for(const x of log) if(x.ex===name && !x.skip && (!best || x.d>best)) best=x.d;
-  return best ? log.filter(x=>x.ex===name && x.d===best && !x.skip).sort((a,b)=>a.s-b.s) : [];
+  for(const x of lg) if(x.ex===name && !x.skip && (!best || x.d>best)) best=x.d;
+  return best ? lg.filter(x=>x.ex===name && x.d===best && !x.skip).sort((a,b)=>a.s-b.s) : [];
 }
-const lastDone = id => log.reduce((m,x)=>x.r===id && x.d>m ? x.d : m, "");
+const lastDone = (id, lg=log) => lg.reduce((m,x)=>x.r===id && x.d>m ? x.d : m, "");
 
 /* ---------- sync ---------- */
 let syncing=false, offline=false;
 async function sync(){
-  if(syncing) return; syncing=true; paintSync();
+  if(syncing || !ls.get(K.token)) return; syncing=true; paintSync();
   try{
     const ob=ls.get(K.outbox,[]);
-    if(ob.length && ls.get(K.token)){ await api("/sets","POST",{rows:ob}); ls.set(K.outbox, ls.get(K.outbox,[]).slice(ob.length)); }
-    if(ls.get(K.dirty) && ls.get(K.token)){ await api("/routines","PUT",{routines}); ls.del(K.dirty); }
-    const data=await api("/data");
+    if(ob.length){ await api("/sets","POST",{rows:ob}); ls.set(K.outbox, ls.get(K.outbox,[]).slice(ob.length)); }
+    if(ls.get(K.dirty)){ await api("/routines","PUT",{routines}); ls.del(K.dirty); }
+    const [data, me, users] = await Promise.all([api("/data"), api("/me"), api("/users")]);
     if(!ls.get(K.dirty)) routines=data.routines;
     log=data.sets.concat(ls.get(K.outbox,[]));
-    ls.set(K.routines,routines); ls.set(K.log,log); offline=false;
+    ls.set(K.routines,routines); ls.set(K.log,log); ls.set(K.me,me); ls.set(K.users,users); offline=false;
   }catch(e){ offline = e!=="auth"; }
   finally{
     syncing=false;
-    // re-render read-only screens with fresh data; don't disturb typing on edit/workout screens
-    if(!/#\/(w|r\/[^/]+\/edit)/.test(location.hash)) render(); else paintSync();
+    // re-render with fresh data unless the user is typing (edit/workout state survives a re-render)
+    if(!document.activeElement?.matches("input,select")) render(); else paintSync();
   }
 }
 function paintSync(){
   const el=$("#sync"); if(!el) return;
   const n=ls.get(K.outbox,[]).length;
   el.className="sync"+(n||offline?" pend":"");
-  el.textContent = syncing ? "syncing…" : n ? `${n} sets unsynced${ls.get(K.token)?"":" · sign in"}` : offline ? "offline" : "";
+  el.textContent = syncing ? "syncing…" : n ? `${n} sets unsynced` : offline ? "offline" : "";
 }
 addEventListener("online", sync);
 
+async function loadOther(uid){
+  try{ others[uid]=await api("/data?u="+uid); }catch{ others[uid]={error:true}; }
+  if(location.hash.startsWith(`#/u/${uid}`)) render();
+}
+
 /* ---------- views ---------- */
+const card = (r, href, lg) => { const l=lastDone(r.id, lg); return `<a class="card" href="${href}">
+  ${r.day?`<div class="day">${esc(r.day)}</div>`:""}
+  <div class="t">${esc(r.name)}${r.sub?` <span class="s">— ${esc(r.sub)}</span>`:""}</div>
+  <div class="s">${r.ex.length} exercise${r.ex.length===1?"":"s"}${l?` · last ${ago(l)}`:""}</div></a>`; };
+const exList = (r, lg) => `<ul class="ex">${r.ex.map(e=>{const p=previous(e.name, lg);
+  return `<li><div>${esc(e.name)}<div class="note">${p.length?"last: "+p.map(fmtSet).join(", "):"no history"}</div></div><span>${target(e)}</span></li>`}).join("")
+  || `<li><span class="note">No exercises yet.</span></li>`}</ul>`;
+
 const views = {
+  signin(){
+    setTimeout(mountSignin);
+    return `<div class="signin"><h1>Lift</h1><p class="s">Sign in to see and log your workouts.</p><div id="gbtn"></div><div class="s" id="gmsg"></div></div>`;
+  },
   home(){
-    const act=ls.get(K.active);
-    return `<header><h1>Lift</h1><span id="sync" class="sync"></span>${ls.get(K.token)?`<button class="sync" data-a="lock">Sign out</button>`:""}</header>
-    ${act?`<a class="card banner" href="#/w"><div class="day">In progress</div><div class="t">${esc(routines.find(r=>r.id===act.r).name)}</div><div class="s">Tap to resume</div></a>`:""}
-    ${routines.length?"":`<p class="s" style="color:var(--mut)">${syncing?"Loading…":"Could not load workouts."}</p>`}
-    ${routines.map(r=>{const l=lastDone(r.id);return `<a class="card" href="#/r/${r.id}">
-      <div class="day">${r.day}</div>
-      <div class="t">${esc(r.name)} <span class="s">— ${esc(r.sub)}</span></div>
-      <div class="s">${r.ex.length} exercises${l?` · last ${ago(l)}`:""}</div></a>`}).join("")}`;
+    const act=ls.get(K.active), me=ls.get(K.me), ar=act&&routines.find(r=>r.id===act.r);
+    const people=ls.get(K.users,[]).filter(u=>!me||u.id!==me.id);
+    return `<header><h1>Lift</h1><span id="sync" class="sync"></span></header>
+    ${act?`<a class="card banner" href="#/w"><div class="day">In progress</div><div class="t">${esc(ar?ar.name:"Workout")}</div><div class="s">Tap to resume</div></a>`:""}
+    ${routines.length||!syncing?"":`<p class="s">Loading…</p>`}
+    ${routines.map(r=>card(r, `#/r/${r.id}`, log)).join("")}
+    <button class="btn" data-a="newRoutine">+ Add routine</button>
+    ${people.length?`<h2>Other lifters</h2>${people.map(u=>`<a class="card" href="#/u/${u.id}"><div class="t">${esc(u.name)}</div></a>`).join("")}`:""}
+    <button class="btn link" data-a="signout">Sign out${me?` ${esc(me.name)}`:""}</button>`;
   },
   routine(id){
     const r=routines.find(r=>r.id===id); if(!r) return views.home();
     const act=ls.get(K.active);
     return `<header><a class="back" href="#/">‹</a><h1>${esc(r.name)}</h1></header>
-    <div class="s" style="color:var(--mut);margin:-8px 0 8px">${r.day} · ${esc(r.sub)}</div>
-    <ul class="ex">${r.ex.map(e=>{const p=previous(e.name);return `<li><div>${esc(e.name)}<div class="note">${p.length?"last: "+p.map(fmtSet).join(", "):"no history"}</div></div><span>${target(e)}</span></li>`}).join("")}</ul>
-    <div class="row2"><button class="btn" data-a="edit" data-id="${id}">Edit</button>
-    ${act&&act.r!==id?`<a class="btn" href="#/w">Resume other</a>`:`<button class="btn pri" data-a="start" data-id="${id}">${act?"Resume":"Start"}</button>`}</div>`;
+    <div class="sub">${[r.day,r.sub].filter(Boolean).map(esc).join(" · ")}</div>
+    ${exList(r, log)}
+    <div class="row2"><a class="btn" href="#/r/${id}/edit">Edit</a>
+    ${act&&act.r!==id?`<a class="btn" href="#/w">Resume other</a>`:`<button class="btn pri" data-a="start" data-id="${id}"${r.ex.length?"":" disabled"}>${act?"Resume":"Start"}</button>`}</div>`;
   },
   edit(id){
-    const r=routines.find(r=>r.id===id); if(!r) return views.home();
-    draft = draft && draft.id===id ? draft : JSON.parse(JSON.stringify(r));
-    return `<header><a class="back" href="#/r/${id}" data-a="cancelEdit">‹</a><h1>Edit ${esc(r.name)}</h1></header>
+    const r=routines.find(r=>r.id===id);
+    if(!(draft&&draft.id===id)){ if(!r) return views.home(); draft=JSON.parse(JSON.stringify(r)); }
+    const isNew=!r;
+    return `<header><a class="back" href="${isNew?"#/":`#/r/${id}`}">‹</a><h1>${isNew?"New routine":"Edit "+esc(r.name)}</h1></header>
+    <div class="ed rt">
+      <div><label>Name</label><input data-rf="name" value="${esc(draft.name)}" placeholder="e.g. Upper A"></div>
+      <div class="f2">
+        <div><label>Day</label><select data-rf="day"><option value="">No day</option>${DAYS.map(d=>`<option${draft.day===d?" selected":""}>${d}</option>`).join("")}</select></div>
+        <div><label>Focus</label><input data-rf="sub" value="${esc(draft.sub)}" placeholder="optional"></div>
+      </div>
+    </div>
     ${draft.ex.map((e,i)=>`<div class="ed" data-i="${i}">
       <div class="top"><input data-f="name" value="${esc(e.name)}" placeholder="Exercise name">
         <button class="ic" data-a="up" ${i?"":"disabled"}>↑</button>
@@ -208,12 +244,13 @@ const views = {
       </div>
     </div>`).join("")}
     <button class="btn" data-a="add">+ Add exercise</button>
+    ${isNew?"":`<button class="btn danger" data-a="delRoutine">Delete routine</button>`}
     <div class="foot"><div><button class="btn pri" data-a="saveEdit">Save</button></div></div>`;
   },
   workout(){
     const a=ls.get(K.active); if(!a){ location.hash="#/"; return ""; }
     const r=routines.find(r=>r.id===a.r);
-    return `<header><a class="back" href="#/">‹</a><h1>${esc(r.name)}</h1><span id="sync" class="sync"></span></header>
+    return `<header><a class="back" href="#/">‹</a><h1>${esc(r?r.name:"Workout")}</h1><span id="sync" class="sync"></span></header>
     ${a.ex.map((e,i)=>{const t=e.kind==="time";return `<div class="exc${e.skipped?" skipped":""}" data-i="${i}">
       <div class="exh"><div class="t">${esc(e.name)}<div class="tgt">${target(e)}</div></div>
         <button class="skip" data-a="skip">${e.skipped?"Unskip":"Skip"}</button></div>
@@ -226,15 +263,31 @@ const views = {
     </div>`}).join("")}
     <button class="btn danger" data-a="discard">Discard workout</button>
     <div class="foot"><div><button class="btn ok" data-a="finish">Finish</button></div></div>`;
+  },
+  // read-only views of someone else
+  other(uid, rid){
+    const u=ls.get(K.users,[]).find(u=>u.id===uid), name=esc(u?u.name:"Lifter"), o=others[uid];
+    if(!o){ loadOther(uid); }
+    const body = !o ? `<p class="s">Loading…</p>` : o.error ? `<p class="s">Couldn't load.</p>` : null;
+    if(rid){
+      const r=o&&!o.error&&o.routines.find(r=>r.id===rid);
+      return `<header><a class="back" href="#/u/${uid}">‹</a><h1>${r?esc(r.name):name}</h1></header>
+      ${body || (r ? `<div class="sub">${name}${r.day?" · "+esc(r.day):""}</div>${exList(r, o.sets)}` : `<p class="s">Not found.</p>`)}`;
+    }
+    return `<header><a class="back" href="#/">‹</a><h1>${name}</h1></header>
+    ${body || (o.routines.map(r=>card(r, `#/u/${uid}/r/${r.id}`, o.sets)).join("") || `<p class="s">No routines.</p>`)}`;
   }
 };
 let draft=null;
 
 function render(){
-  const h=location.hash.slice(1)||"/", m=h.split("/").filter(Boolean);
-  if(m[2]==="edit" && !ls.get(K.token)) return location.hash=`#/r/${m[1]}`;
-  if(m[0]!=="r"||m[2]!=="edit") draft=null;
-  $("#app").innerHTML = m[0]==="r" ? (m[2]==="edit"?views.edit(m[1]):views.routine(m[1])) : m[0]==="w" ? views.workout() : views.home();
+  const m=(location.hash.slice(1)||"/").split("/").filter(Boolean);
+  if(!(m[0]==="r"&&m[2]==="edit")) draft=null;
+  $("#app").innerHTML =
+    !ls.get(K.token) ? views.signin() :
+    m[0]==="u" ? views.other(+m[1], m[2]==="r"?m[3]:null) :
+    m[0]==="r" ? (m[2]==="edit"?views.edit(m[1]):views.routine(m[1])) :
+    m[0]==="w" ? views.workout() : views.home();
   paintSync();
 }
 addEventListener("hashchange", ()=>{ render(); scrollTo(0,0); });
@@ -267,15 +320,16 @@ function finish(){
   location.hash="#/"; sync();
 }
 
+function saveRoutines(){ ls.set(K.routines,routines); ls.set(K.dirty,1); sync(); }
+
 document.addEventListener("click", ev=>{
   const b=ev.target.closest("[data-a]"); if(!b) return;
   const act=b.dataset.a;
-  if(act==="start") return unlock().then(ok=>ok&&startWorkout(b.dataset.id));
-  if(act==="edit") return unlock().then(ok=>{ if(ok) location.hash=`#/r/${b.dataset.id}/edit`; });
-  if(act==="lock"){ api("/logout","POST").catch(()=>{}).finally(()=>{ ls.del(K.token); render(); }); return; }
+  if(act==="start") return startWorkout(b.dataset.id);
+  if(act==="signout") return signOut();
+  if(act==="newRoutine"){ draft={id:newId(), day:"", name:"", sub:"", ex:[]}; location.hash=`#/r/${draft.id}/edit`; return; }
   if(act==="finish") return finish();
   if(act==="discard"){ if(confirm("Discard this workout? Nothing will be saved.")){ ls.del(K.active); location.hash="#/"; } return; }
-  if(act==="cancelEdit"){ draft=null; return; }
   if(location.hash.startsWith("#/w")){
     const a=ls.get(K.active), ex=a.ex[b.closest("[data-i]").dataset.i];
     if(act==="skip") ex.skipped=!ex.skipped;
@@ -287,28 +341,34 @@ document.addEventListener("click", ev=>{
     if(act==="add") draft.ex.push({name:"", kind:"wr", sets:3, reps:"8-10", w:0});
     if(act==="del" && confirm(`Remove ${draft.ex[i].name||"exercise"}?`)) draft.ex.splice(i,1);
     if(act==="up") [draft.ex[i-1],draft.ex[i]]=[draft.ex[i],draft.ex[i-1]];
+    if(act==="delRoutine"){
+      const a=ls.get(K.active);
+      if(a&&a.r===draft.id) return alert("Finish or discard the workout in progress first.");
+      if(!confirm(`Delete ${draft.name||"this routine"}? Your logged lifts are kept.`)) return;
+      routines=routines.filter(r=>r.id!==draft.id); draft=null; saveRoutines(); location.hash="#/"; return;
+    }
     if(act==="saveEdit"){
+      draft.name=draft.name.trim()||"Untitled routine"; draft.sub=draft.sub.trim();
       draft.ex=draft.ex.filter(e=>e.name.trim()).map(e=>({...e,name:e.name.trim(),sets:Math.max(1,+e.sets||1)}));
-      routines=routines.map(r=>r.id===draft.id?draft:r); ls.set(K.routines,routines); ls.set(K.dirty,1); sync();
-      const id=draft.id; draft=null; location.hash=`#/r/${id}`; return;
+      routines = routines.some(r=>r.id===draft.id) ? routines.map(r=>r.id===draft.id?draft:r) : routines.concat(draft);
+      const id=draft.id; draft=null; saveRoutines(); location.hash=`#/r/${id}`; return;
     }
     render();
   }
 });
 document.addEventListener("input", ev=>{
-  const f=ev.target.dataset.f; if(!f) return;
-  const i=ev.target.closest("[data-i]")?.dataset.i;
+  const {f, rf}=ev.target.dataset; if(!f&&!rf) return;
   if(location.hash.startsWith("#/w")){
-    const a=ls.get(K.active), j=ev.target.closest("[data-j]").dataset.j;
+    const a=ls.get(K.active), i=ev.target.closest("[data-i]").dataset.i, j=ev.target.closest("[data-j]").dataset.j;
     a.ex[i].sets[j][f]=ev.target.value; ls.set(K.active,a); // saved on every keystroke
   } else if(draft){
-    draft.ex[i][f]=ev.target.value;
-    if(f==="kind") render();
+    if(rf) draft[rf]=ev.target.value;
+    else { draft.ex[ev.target.closest("[data-i]").dataset.i][f]=ev.target.value; if(f==="kind") render(); }
   }
 });
 document.addEventListener("focusin", ev=>{ if(ev.target.tagName==="INPUT" && ev.target.type==="number") ev.target.select(); });
 
-render(); sync();
+sync(); render();   // sync first so the first paint knows it's loading
 </script>
 </body>
 </html>
