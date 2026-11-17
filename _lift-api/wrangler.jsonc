@@ -1,0 +1,14 @@
+{
+  "name": "lift-api",
+  "main": "worker.js",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  "vars": {
+    "GOOGLE_CLIENT_ID": "634279737389-s25tjhmhkc3ncs3uddvd309gat185016.apps.googleusercontent.com",
+    "ALLOWED_ORIGINS": "https://kevintracy.info,http://localhost:8765"
+  },
+  // ALLOWED_EMAIL is a secret: `wrangler secret put ALLOWED_EMAIL` (and in .dev.vars for local dev)
+  "d1_databases": [
+    { "binding": "DB", "database_name": "lift", "database_id": "4e9a2148-68d1-4298-86ee-82618ccff9fe" }
+  ]
+}

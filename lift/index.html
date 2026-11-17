@@ -52,6 +52,10 @@ input:focus{outline:none;border-color:var(--acc)}
 .set.done input{background:transparent;border-color:transparent}
 .chk{width:40px;height:36px;border-radius:8px;background:var(--line);font-size:18px;color:var(--mut)}
 .set.done .chk{background:var(--ok);color:#06210f}
+.modal{position:fixed;inset:0;background:#000a;display:grid;place-items:center;padding:16px;z-index:9}
+.sheet{background:var(--card);border-radius:var(--r);padding:20px;width:100%;max-width:340px;display:grid;gap:14px;justify-items:center;text-align:center}
+.sheet .t{font-weight:600}
+.sheet .s{font-size:13px;color:var(--mut);min-height:1em}
 .foot{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 30%)}
 .foot>div{max-width:528px;margin:0 auto}
 /* edit */
@@ -70,79 +74,53 @@ input:focus{outline:none;border-color:var(--acc)}
 <script>
 "use strict";
 /* ---------- storage ----------
-   Everything is cached in localStorage. Finished workouts go into an outbox
-   that is only cleared after the backend confirms the write, so nothing is
-   lost if the page closes or the network is down.
-   `backend` is a mock now; it becomes the Google Sheets adapter later. */
-const K = {routines:"lift.routines", log:"lift.log", active:"lift.active", outbox:"lift.outbox", code:"lift.code"};
+   Everything is cached in localStorage so the page renders instantly and works
+   offline. Finished workouts go into an outbox that is only cleared after the
+   API confirms the write; retries are safe because rows carry a workout id. */
+const API = location.hostname==="localhost" ? "http://127.0.0.1:8787" : "https://lift-api.kevt-laser.workers.dev";
+const CLIENT_ID = "634279737389-s25tjhmhkc3ncs3uddvd309gat185016.apps.googleusercontent.com";
+const K = {routines:"lift.routines", log:"lift.log", active:"lift.active", outbox:"lift.outbox", token:"lift.token", dirty:"lift.dirty"};
 const ls = {
   get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch{ return d; } },
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} },
   del(k){ try{ localStorage.removeItem(k); }catch{} }
 };
+// drop anything left over from the prototype (fake history, test workouts)
+if(ls.get("lift.v")!==2){ try{ Object.keys(localStorage).filter(k=>k.startsWith("lift.")).forEach(k=>localStorage.removeItem(k)); }catch{} ls.set("lift.v",2); }
 
-/* MOCK — swap for the Apps Script adapter. In the real version the code check
-   happens inside Apps Script against a secret stored there, so the code never
-   appears in this page's source. Every write sends the saved code. */
-const MOCK_CODE = "knees";
-const wait = ms => new Promise(r=>setTimeout(r,ms));
-const backend = {
-  async verify(code){ await wait(200); return code===MOCK_CODE; },
-  async appendRows(rows, code){ await wait(400); if(code!==MOCK_CODE) throw "auth"; return true; },
-  async saveRoutines(r, code){ await wait(300); if(code!==MOCK_CODE) throw "auth"; return true; }
-};
-
-// ask for the code once per device; remembered in localStorage
-async function unlock(){
-  if(ls.get(K.code)) return true;
-  const c=(prompt("haley has no __")||"").trim().toLowerCase();
-  if(!c) return false;
-  if(await backend.verify(c)){ ls.set(K.code,c); return true; }
-  alert("Wrong answer"); return false;
+async function api(path, method="GET", body){
+  const h={}, tok=ls.get(K.token);
+  if(tok) h.authorization="Bearer "+tok;
+  if(body) h["content-type"]="application/json";
+  const r=await fetch(API+path, {method, headers:h, body:body&&JSON.stringify(body)});
+  if(r.status===401){ ls.del(K.token); throw "auth"; }
+  if(!r.ok) throw "http";
+  return r.json();
 }
 
-/* ---------- seed data ---------- */
-const E = (name, sets, reps, w, note="", kind="wr") => ({name, kind, sets, reps, w});
-const SEED = [
-  {id:"mon", day:"Monday", name:"Upper A", sub:"Push heavy / row", ex:[
-    E("Incline DB Chest Press",3,"6-8",55,"2–3 min rest"),
-    E("Chest-Supported DB Row",3,"8-10",45,"1s pause top, 2s stretch bottom"),
-    E("DB Overhead Shoulder Press",3,"8-10",40,"Neutral / scaption grip"),
-    E("Overhead DB Tricep Extension",3,"10-12",35,"Long head, lengthened"),
-    E("Lateral Delt Raises",3,"12-15",15,"Controlled 2s eccentric")]},
-  {id:"tue", day:"Tuesday", name:"Lower A", sub:"Quad / explosive", ex:[
-    E("Power Clean",4,"3",135,"Explosive; 2–3 min rest"),
-    E("Front Squat",3,"5",155,"Deep, upright trunk"),
-    E("Step-Ups / Walking Lunges",3,"8-10",30,"Per leg"),
-    E("Calf Raises",3,"12-15",90,"2s pause at bottom"),
-    E("Hanging Leg Raises",3,"10-12",0)]},
-  {id:"wed", day:"Wednesday", name:"Upper B", sub:"Pull heavy / chest-delts", ex:[
-    E("Chin-ups",3,"6-8",0,"RPE 8–9; weight = added load"),
-    E("Flat DB Chest Press",3,"8-10",60),
-    E("Lat Pulldown",3,"10-12",120,"Deep lat stretch"),
-    E("Incline DB Bicep Curls",3,"10-12",25),
-    E("Reverse Wrist Curls",3,"15",20)]},
-  {id:"fri", day:"Friday", name:"Lower B", sub:"Hinge / back squat", ex:[
-    E("Deadlift",3,"5",225,"First, while fresh"),
-    E("Hang Clean",3,"3",125,"Mid-thigh position"),
-    E("Back Squat",3,"5",185),
-    E("Lateral Delt Raises",3,"12-15",15),
-    E("Tricep Cable Pulldowns",3,"10-12",50),
-    E("Plank",2,"",0,"Example timed exercise","time")]}
-];
-function fakeLog(){ // two weeks of fake history so "previous" has something to show
-  const rows=[], today=new Date();
-  const dayIdx={mon:1,tue:2,wed:3,fri:5};
-  for(const wk of [2,1]) for(const r of SEED){
-    const d=new Date(today); d.setDate(d.getDate()-(((d.getDay()-dayIdx[r.id]+7)%7)||7)-7*(wk-1));
-    const ds=iso(d);
-    r.ex.forEach(e=>{ for(let s=1;s<=e.sets;s++){
-      const reps=lo(e.reps)+(wk===1?1:0)-(s===e.sets?1:0);
-      rows.push(e.kind==="time" ? {d:ds,r:r.id,ex:e.name,s,t:45+15*(2-wk)}
-        : {d:ds,r:r.id,ex:e.name,s,w:e.w-(wk===2&&e.w?5:0),reps:Math.max(1,reps)});
+/* ---------- sign in ----------
+   Google's script is loaded only when someone taps Start/Edit while signed out.
+   The API checks the Google token is the owner's and hands back a long-lived
+   device token, so sign-in happens once per device. */
+let gisP=null;
+const loadGis=()=>gisP||=new Promise((res,rej)=>{ const s=document.createElement("script");
+  s.src="https://accounts.google.com/gsi/client"; s.onload=res; s.onerror=()=>{gisP=null; rej();}; document.head.append(s); });
+function unlock(){
+  if(ls.get(K.token)) return Promise.resolve(true);
+  return new Promise(async done=>{
+    const m=document.createElement("div"); m.className="modal";
+    m.innerHTML=`<div class="sheet"><div class="t">Sign in to make changes</div><div id="gbtn"></div><div class="s" id="gmsg"></div><button class="btn">Cancel</button></div>`;
+    document.body.append(m);
+    const msg=t=>m.querySelector("#gmsg").textContent=t, close=ok=>{ m.remove(); done(ok); };
+    m.querySelector("button").onclick=()=>close(false);
+    try{ await loadGis(); }catch{ return msg("Couldn't load Google sign-in."); }
+    google.accounts.id.initialize({client_id:CLIENT_ID, callback:async ({credential})=>{
+      msg("Checking…");
+      try{ const {token}=await api("/login","POST",{credential}); ls.set(K.token,token); close(true); sync(); }
+      catch{ msg("This account can't edit this tracker."); }
     }});
-  }
-  return rows;
+    google.accounts.id.renderButton(m.querySelector("#gbtn"), {theme:"filled_black", size:"large", shape:"pill"});
+  });
 }
 
 /* ---------- helpers ---------- */
@@ -155,9 +133,8 @@ const fmtSet = x => x.skip ? "–" : x.t!=null ? `${x.t}s` : `${x.w ? x.w : "BW"
 const target = e => { const n=e.n??e.sets; return e.kind==="time" ? `${n} sets` : `${n} × ${e.reps}`; };
 const ago = d => { const n=Math.round((new Date(iso(new Date()))-new Date(d))/864e5); return n===0?"today":n===1?"yesterday":`${n} days ago`; };
 
-let routines = ls.get(K.routines) || SEED;
-let log = ls.get(K.log) || fakeLog();
-ls.set(K.routines, routines); ls.set(K.log, log);
+let routines = ls.get(K.routines, []);
+let log = ls.get(K.log, []);
 
 // most recent non-skipped sets of an exercise (by name, across routines)
 function previous(name){
@@ -168,19 +145,29 @@ function previous(name){
 const lastDone = id => log.reduce((m,x)=>x.r===id && x.d>m ? x.d : m, "");
 
 /* ---------- sync ---------- */
-let syncing=false;
+let syncing=false, offline=false;
 async function sync(){
-  const ob=ls.get(K.outbox,[]);
-  if(syncing||!ob.length) return paintSync();
-  syncing=true; paintSync();
-  try{ if(await backend.appendRows(ob, ls.get(K.code))){ const now=ls.get(K.outbox,[]); ls.set(K.outbox, now.slice(ob.length)); } }
-  catch(e){ if(e==="auth") ls.del(K.code); } finally{ syncing=false; paintSync(); }
+  if(syncing) return; syncing=true; paintSync();
+  try{
+    const ob=ls.get(K.outbox,[]);
+    if(ob.length && ls.get(K.token)){ await api("/sets","POST",{rows:ob}); ls.set(K.outbox, ls.get(K.outbox,[]).slice(ob.length)); }
+    if(ls.get(K.dirty) && ls.get(K.token)){ await api("/routines","PUT",{routines}); ls.del(K.dirty); }
+    const data=await api("/data");
+    if(!ls.get(K.dirty)) routines=data.routines;
+    log=data.sets.concat(ls.get(K.outbox,[]));
+    ls.set(K.routines,routines); ls.set(K.log,log); offline=false;
+  }catch(e){ offline = e!=="auth"; }
+  finally{
+    syncing=false;
+    // re-render read-only screens with fresh data; don't disturb typing on edit/workout screens
+    if(!/#\/(w|r\/[^/]+\/edit)/.test(location.hash)) render(); else paintSync();
+  }
 }
 function paintSync(){
   const el=$("#sync"); if(!el) return;
   const n=ls.get(K.outbox,[]).length;
-  el.className="sync"+(n?" pend":"");
-  el.textContent = syncing ? "syncing…" : n ? `${n} sets unsynced` : "synced";
+  el.className="sync"+(n||offline?" pend":"");
+  el.textContent = syncing ? "syncing…" : n ? `${n} sets unsynced${ls.get(K.token)?"":" · sign in"}` : offline ? "offline" : "";
 }
 addEventListener("online", sync);
 
@@ -188,8 +175,9 @@ addEventListener("online", sync);
 const views = {
   home(){
     const act=ls.get(K.active);
-    return `<header><h1>Lift</h1><span id="sync" class="sync"></span>${ls.get(K.code)?`<button class="sync" data-a="lock">Lock</button>`:""}</header>
+    return `<header><h1>Lift</h1><span id="sync" class="sync"></span>${ls.get(K.token)?`<button class="sync" data-a="lock">Sign out</button>`:""}</header>
     ${act?`<a class="card banner" href="#/w"><div class="day">In progress</div><div class="t">${esc(routines.find(r=>r.id===act.r).name)}</div><div class="s">Tap to resume</div></a>`:""}
+    ${routines.length?"":`<p class="s" style="color:var(--mut)">${syncing?"Loading…":"Could not load workouts."}</p>`}
     ${routines.map(r=>{const l=lastDone(r.id);return `<a class="card" href="#/r/${r.id}">
       <div class="day">${r.day}</div>
       <div class="t">${esc(r.name)} <span class="s">— ${esc(r.sub)}</span></div>
@@ -244,7 +232,7 @@ let draft=null;
 
 function render(){
   const h=location.hash.slice(1)||"/", m=h.split("/").filter(Boolean);
-  if(m[2]==="edit" && !ls.get(K.code)) return location.hash=`#/r/${m[1]}`;
+  if(m[2]==="edit" && !ls.get(K.token)) return location.hash=`#/r/${m[1]}`;
   if(m[0]!=="r"||m[2]!=="edit") draft=null;
   $("#app").innerHTML = m[0]==="r" ? (m[2]==="edit"?views.edit(m[1]):views.routine(m[1])) : m[0]==="w" ? views.workout() : views.home();
   paintSync();
@@ -255,7 +243,7 @@ addEventListener("hashchange", ()=>{ render(); scrollTo(0,0); });
 function startWorkout(id){
   if(ls.get(K.active)) return location.hash="#/w";
   const r=routines.find(r=>r.id===id);
-  ls.set(K.active,{r:id, d:iso(new Date()), ex:r.ex.map(e=>{
+  ls.set(K.active,{r:id, wid:crypto.randomUUID(), d:iso(new Date()), ex:r.ex.map(e=>{
     const p=previous(e.name);
     return {name:e.name, kind:e.kind, n:e.sets, reps:e.reps, w:e.w, skipped:false,
       sets:Array.from({length:e.sets},(_,j)=>{const q=p[j]||p[p.length-1];
@@ -270,7 +258,7 @@ function finish(){
   const open=a.ex.reduce((n,e)=>n+(e.skipped?0:e.sets.filter(s=>!s.done).length),0);
   if(open && !confirm(`${open} unchecked set${open>1?"s":""} will be logged as skipped. Finish?`)) return;
   a.ex.forEach(e=>e.sets.forEach((s,j)=>{
-    const base={d:a.d, r:a.r, ex:e.name, s:j+1};
+    const base={wid:a.wid, d:a.d, r:a.r, ex:e.name, s:j+1};
     rows.push(e.skipped||!s.done ? {...base, skip:true} : e.kind==="time" ? {...base, t:num(s.t)} : {...base, w:num(s.w)||0, reps:num(s.reps)});
   }));
   log=log.concat(rows); ls.set(K.log, log);
@@ -284,7 +272,7 @@ document.addEventListener("click", ev=>{
   const act=b.dataset.a;
   if(act==="start") return unlock().then(ok=>ok&&startWorkout(b.dataset.id));
   if(act==="edit") return unlock().then(ok=>{ if(ok) location.hash=`#/r/${b.dataset.id}/edit`; });
-  if(act==="lock"){ ls.del(K.code); return render(); }
+  if(act==="lock"){ api("/logout","POST").catch(()=>{}).finally(()=>{ ls.del(K.token); render(); }); return; }
   if(act==="finish") return finish();
   if(act==="discard"){ if(confirm("Discard this workout? Nothing will be saved.")){ ls.del(K.active); location.hash="#/"; } return; }
   if(act==="cancelEdit"){ draft=null; return; }
@@ -296,12 +284,12 @@ document.addEventListener("click", ev=>{
   }
   if(draft){
     const i=+b.closest("[data-i]")?.dataset.i;
-    if(act==="add") draft.ex.push(E("",3,"8-10",0));
+    if(act==="add") draft.ex.push({name:"", kind:"wr", sets:3, reps:"8-10", w:0});
     if(act==="del" && confirm(`Remove ${draft.ex[i].name||"exercise"}?`)) draft.ex.splice(i,1);
     if(act==="up") [draft.ex[i-1],draft.ex[i]]=[draft.ex[i],draft.ex[i-1]];
     if(act==="saveEdit"){
       draft.ex=draft.ex.filter(e=>e.name.trim()).map(e=>({...e,name:e.name.trim(),sets:Math.max(1,+e.sets||1)}));
-      routines=routines.map(r=>r.id===draft.id?draft:r); ls.set(K.routines,routines); backend.saveRoutines(routines, ls.get(K.code)).catch(()=>{});
+      routines=routines.map(r=>r.id===draft.id?draft:r); ls.set(K.routines,routines); ls.set(K.dirty,1); sync();
       const id=draft.id; draft=null; location.hash=`#/r/${id}`; return;
     }
     render();
